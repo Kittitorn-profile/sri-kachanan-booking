@@ -16,7 +16,7 @@ import { RouterLink } from 'src/routes/components';
 import { Label } from 'src/components/label';
 import { CustomPopover } from 'src/components/custom-popover';
 
-import { useMockedUser } from 'src/auth/hooks';
+import { useAuthContext } from 'src/auth/hooks';
 
 import { AccountButton } from './account-button';
 import { SignOutButton } from './sign-out-button';
@@ -32,12 +32,21 @@ export type AccountPopoverProps = IconButtonProps & {
   }[];
 };
 
-export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps) {
+export function AccountPopover({ data, sx, ...other }: AccountPopoverProps) {
   const pathname = usePathname();
 
   const { open, anchorEl, onClose, onOpen } = usePopover();
 
-  const { user } = useMockedUser();
+  const { user } = useAuthContext();
+  const isAdmin = user?.role === 'admin';
+
+  const menuData: NonNullable<AccountPopoverProps['data']> =
+    data ??
+    [
+      { label: 'หน้าแรก', href: '/', icon: null },
+      ...(!isAdmin ? [{ label: 'นัดหมายของฉัน', href: paths.booking, icon: null }] : []),
+      ...(isAdmin ? [{ label: 'ระบบหลังบ้าน', href: '/admin', icon: null }] : []),
+    ];
 
   const renderMenuActions = () => (
     <CustomPopover
@@ -59,7 +68,7 @@ export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps)
       <Divider sx={{ borderStyle: 'dashed' }} />
 
       <MenuList sx={{ p: 1, my: 1, '& li': { p: 0 } }}>
-        {data.map((option) => {
+        {menuData.map((option) => {
           const rootLabel = pathname.includes('/dashboard') ? 'Home' : 'Dashboard';
           const rootHref = pathname.includes('/dashboard') ? '/' : paths.dashboard.root;
 

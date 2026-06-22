@@ -18,20 +18,15 @@ export const navData: NavMainProps['data'] = [
     icon: <Iconify width={22} icon="solar:tea-cup-bold" />,
   },
   {
-    title: 'จองคิว',
-    path: paths.booking,
-    icon: <Iconify width={22} icon="solar:calendar-date-bold" />,
-  },
-  {
     title: 'นัดหมายของฉัน',
     path: paths.booking,
     icon: <Iconify width={22} icon="solar:user-rounded-bold" />,
   },
-  {
-    title: 'Admin',
-    path: '/admin',
-    icon: <Iconify width={22} icon="solar:chart-square-outline" />,
-  },
+  // {
+  //   title: 'Admin',
+  //   path: '/admin',
+  //   icon: <Iconify width={22} icon="solar:chart-square-outline" />,
+  // },
   // {
   //   title: 'Components',
   //   path: paths.components,

@@ -13,6 +13,14 @@ const axiosInstance = axios.create({
   },
 });
 
+axiosInstance.interceptors.request.use((config) => {
+  if (typeof config.url === 'string' && config.url.startsWith('/api/')) {
+    config.baseURL = '';
+  }
+
+  return config;
+});
+
 /**
  * Optional: Add token (if using auth)
  *
@@ -64,6 +72,10 @@ export const endpoints = {
     me: '/api/auth/me',
     signIn: '/api/auth/sign-in',
     signUp: '/api/auth/sign-up',
+    syncProfile: '/api/auth/sync-profile',
+  },
+  admin: {
+    users: '/api/admin/users',
   },
   mail: {
     list: '/api/mail/list',

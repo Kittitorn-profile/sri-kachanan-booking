@@ -5,19 +5,24 @@ import type { FooterProps } from './footer';
 import type { NavMainProps } from './nav/types';
 import type { MainSectionProps, HeaderSectionProps, LayoutSectionProps } from '../core';
 
+import { useEffect } from 'react';
 import { useBoolean } from 'minimal-shared/hooks';
 
 import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 
-import { usePathname } from 'src/routes/hooks';
+import { useRouter, usePathname } from 'src/routes/hooks';
 
 import { Logo } from 'src/components/logo';
+import { SplashScreen } from 'src/components/loading-screen';
+
+import { useAuthContext } from 'src/auth/hooks';
 
 import { NavMobile } from './nav/mobile';
 import { NavDesktop } from './nav/desktop';
 import { Footer, HomeFooter } from './footer';
 import { MenuButton } from '../components/menu-button';
+import { SignInButton } from '../components/sign-in-button';
 import { navData as mainNavData } from '../nav-config-main';
 import { AccountPopover } from '../components/account-popover';
 import { MainSection, LayoutSection, HeaderSection } from '../core';
@@ -45,13 +50,36 @@ export function MainLayout({
   slotProps,
   layoutQuery = 'md',
 }: MainLayoutProps) {
+  const router = useRouter();
   const pathname = usePathname();
 
   const { value: open, onFalse: onClose, onTrue: onOpen } = useBoolean();
+  const { authenticated, loading, user } = useAuthContext();
 
   const isHomePage = pathname === '/';
+  const shouldRedirectAdmin = authenticated && user?.role === 'admin';
 
-  const navData = slotProps?.nav?.data ?? mainNavData;
+  useEffect(() => {
+    if (shouldRedirectAdmin) {
+      router.replace('/admin');
+    }
+  }, [router, shouldRedirectAdmin]);
+
+  const navData = (slotProps?.nav?.data ?? mainNavData).filter((item) => {
+    if (item.path === '/admin') {
+      return user?.role === 'admin';
+    }
+
+    if (item.path === '/booking') {
+      return user?.role !== 'admin';
+    }
+
+    return true;
+  });
+
+  if (loading || shouldRedirectAdmin) {
+    return <SplashScreen />;
+  }
 
   const renderHeader = () => {
     const headerSlots: HeaderSectionProps['slots'] = {
@@ -71,7 +99,20 @@ export function MainLayout({
               [theme.breakpoints.up(layoutQuery)]: { display: 'none' },
             })}
           />
-          <NavMobile data={navData} open={open} onClose={onClose} />
+          <NavMobile
+            data={navData}
+            open={open}
+            onClose={onClose}
+            slots={{
+              bottomArea: authenticated ? (
+                <Box />
+              ) : (
+                <Box sx={{ py: 3, px: 2.5 }}>
+                  <SignInButton fullWidth />
+                </Box>
+              ),
+            }}
+          />
 
           {/** @slot Logo */}
           <Logo />
@@ -92,10 +133,7 @@ export function MainLayout({
             {/** @slot Settings button */}
             {/* <SettingsButton /> */}
 
-            {/** @slot Sign in button */}
-            {/* <SignInButton /> */}
-
-            <AccountPopover />
+            {authenticated ? <AccountPopover /> : <SignInButton />}
             {/** @slot Purchase button */}
             {/* <Button
               variant="contained"

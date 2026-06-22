@@ -2,7 +2,6 @@
 
 import type {
   AuthError,
-  AuthResponse,
   UserResponse,
   AuthTokenResponsePassword,
   SignInWithPasswordCredentials,
@@ -12,6 +11,7 @@ import type {
 import { paths } from 'src/routes/paths';
 
 import { supabase } from 'src/lib/supabase';
+import axios, { endpoints } from 'src/lib/axios';
 
 // ----------------------------------------------------------------------
 
@@ -44,13 +44,38 @@ export type UpdatePasswordParams = {
   };
 };
 
+type UserProfileAuth = {
+  role: 'admin' | 'user';
+  approval_status: 'pending' | 'approved' | 'rejected';
+};
+
+type SignInResponse = AuthTokenResponsePassword & {
+  data: AuthTokenResponsePassword['data'] & {
+    profile: UserProfileAuth;
+  };
+};
+
+async function syncProfile(accessToken: string): Promise<UserProfileAuth> {
+  const { data } = await axios.post<{ profile: UserProfileAuth }>(
+    endpoints.auth.syncProfile,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  return data.profile;
+}
+
 /** **************************************
  * Sign in
  *************************************** */
 export const signInWithPassword = async ({
   email,
   password,
-}: SignInParams): Promise<AuthTokenResponsePassword> => {
+}: SignInParams): Promise<SignInResponse> => {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
@@ -58,7 +83,28 @@ export const signInWithPassword = async ({
     throw error;
   }
 
-  return { data, error };
+  const syncedProfile = await syncProfile(data.session.access_token);
+
+  if (!syncedProfile) {
+    await supabase.auth.signOut();
+    throw new Error('ไม่พบข้อมูลสิทธิ์ผู้ใช้');
+  }
+
+  const approvalStatus = syncedProfile.approval_status;
+  const appRole = syncedProfile.role;
+  const isAdminAccount = appRole === 'admin';
+
+  if (!isAdminAccount && approvalStatus !== 'approved') {
+    await supabase.auth.signOut();
+
+    throw new Error(
+      approvalStatus === 'rejected'
+        ? 'บัญชีนี้ถูกปฏิเสธโดยผู้ดูแลระบบ'
+        : 'บัญชีของคุณกำลังรอผู้ดูแลระบบอนุมัติ'
+    );
+  }
+
+  return { data: { ...data, profile: syncedProfile }, error };
 };
 
 /** **************************************
@@ -69,26 +115,15 @@ export const signUp = async ({
   password,
   firstName,
   lastName,
-}: SignUpParams): Promise<AuthResponse> => {
-  const { data, error } = await supabase.auth.signUp({
+}: SignUpParams): Promise<{ data: unknown; error: null }> => {
+  const { data } = await axios.post(endpoints.auth.signUp, {
     email,
     password,
-    options: {
-      emailRedirectTo: `${window.location.origin}${paths.dashboard.root}`,
-      data: { display_name: `${firstName} ${lastName}` },
-    },
+    firstName,
+    lastName,
   });
 
-  if (error) {
-    console.error(error);
-    throw error;
-  }
-
-  if (!data?.user?.identities?.length) {
-    throw new Error('This user already exists');
-  }
-
-  return { data, error };
+  return { data, error: null };
 };
 
 /** **************************************

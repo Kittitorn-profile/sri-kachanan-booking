@@ -1,7 +1,10 @@
 'use client';
 
+import { useState, useEffect, useCallback } from 'react';
+
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
+import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
@@ -9,6 +12,8 @@ import Typography from '@mui/material/Typography';
 import CardHeader from '@mui/material/CardHeader';
 import CardContent from '@mui/material/CardContent';
 
+import { supabase } from 'src/lib/supabase';
+import axios, { endpoints } from 'src/lib/axios';
 import { DashboardContent } from 'src/layouts/dashboard';
 
 import { Iconify } from 'src/components/iconify';
@@ -51,6 +56,14 @@ const customers = [
   ['คุณอร', 'สมาชิกใหม่', '2 ครั้ง', 'ติดตามชำระเงิน'],
   ['คุณภาคิน', 'ลูกค้าประจำ', '8 ครั้ง', 'ชอบรอบบ่าย'],
 ];
+
+type RegistrationRequest = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  requestedAt: string;
+};
 
 function StatusPill({ children }: { children: React.ReactNode }) {
   return (
@@ -136,6 +149,88 @@ function AdminTable({
 }
 
 export function AdminView() {
+  const [registrationRequests, setRegistrationRequests] = useState<RegistrationRequest[]>([]);
+  const [requestsError, setRequestsError] = useState<string | null>(null);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+
+  const getAccessToken = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    return session?.access_token;
+  }, []);
+
+  const fetchRegistrationRequests = useCallback(async () => {
+    try {
+      setRequestsError(null);
+
+      const accessToken = await getAccessToken();
+
+      if (!accessToken) {
+        setRequestsError('ไม่พบ session ของ admin');
+        return;
+      }
+
+      const { data } = await axios.get<{
+        users: {
+          id: string;
+          email?: string;
+          phone?: string;
+          displayName?: string;
+          requestedAt?: string;
+        }[];
+      }>(`${endpoints.admin.users}?role=user&status=pending`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      setRegistrationRequests(
+        data.users.map((user) => ({
+          id: user.id,
+          name: user.displayName || user.email || 'ไม่ระบุชื่อ',
+          email: user.email || '-',
+          phone: user.phone || '-',
+          requestedAt: user.requestedAt || '-',
+        }))
+      );
+    } catch (error) {
+      setRequestsError(error instanceof Error ? error.message : 'โหลดคำขอไม่สำเร็จ');
+    }
+  }, [getAccessToken]);
+
+  const handleUpdateRegistrationRequest = useCallback(
+    async (userId: string, approvalStatus: 'approved' | 'rejected') => {
+      try {
+        setUpdatingUserId(userId);
+        setRequestsError(null);
+
+        const accessToken = await getAccessToken();
+
+        if (!accessToken) {
+          setRequestsError('ไม่พบ session ของ admin');
+          return;
+        }
+
+        await axios.patch(
+          endpoints.admin.users,
+          { userId, approvalStatus },
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+
+        await fetchRegistrationRequests();
+      } catch (error) {
+        setRequestsError(error instanceof Error ? error.message : 'อัปเดตคำขอไม่สำเร็จ');
+      } finally {
+        setUpdatingUserId(null);
+      }
+    },
+    [fetchRegistrationRequests, getAccessToken]
+  );
+
+  useEffect(() => {
+    fetchRegistrationRequests();
+  }, [fetchRegistrationRequests]);
+
   return (
     <DashboardContent maxWidth="xl" sx={{ mt: 10 }}>
       <Stack
@@ -195,6 +290,97 @@ export function AdminView() {
           </Card>
         ))}
       </Box>
+
+      <Card sx={{ mt: 3 }}>
+        <CardHeader
+          title="คำขอลงทะเบียนสมาชิก"
+          subheader="ผู้ใช้ใหม่ต้องได้รับการอนุมัติจาก admin ก่อนจึงจะเข้าสู่ระบบได้"
+          action={<StatusPill>รออนุมัติ {registrationRequests.length}</StatusPill>}
+        />
+        <CardContent>
+          {requestsError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {requestsError}
+            </Alert>
+          )}
+
+          <Stack spacing={1.5}>
+            {registrationRequests.map((request) => (
+              <Box
+                key={request.email}
+                sx={{
+                  p: 2,
+                  display: 'grid',
+                  gap: 2,
+                  borderRadius: 1,
+                  alignItems: 'center',
+                  bgcolor: 'background.neutral',
+                  gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 150px 190px' },
+                }}
+              >
+                <Box>
+                  <Typography sx={{ fontWeight: 800 }}>{request.name}</Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    {request.email}
+                  </Typography>
+                  <StatusPill>role: user</StatusPill>
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    เบอร์โทร
+                  </Typography>
+                  <Typography variant="body2">{request.phone}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    ส่งคำขอ
+                  </Typography>
+                  <Typography variant="body2">{request.requestedAt}</Typography>
+                </Box>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    loading={updatingUserId === request.id}
+                    onClick={() => handleUpdateRegistrationRequest(request.id, 'approved')}
+                    startIcon={<Iconify icon="solar:check-circle-bold" />}
+                  >
+                    อนุมัติ
+                  </Button>
+                  <Button
+                    size="small"
+                    color="error"
+                    variant="outlined"
+                    loading={updatingUserId === request.id}
+                    onClick={() => handleUpdateRegistrationRequest(request.id, 'rejected')}
+                    startIcon={<Iconify icon="solar:close-circle-bold" />}
+                  >
+                    ปฏิเสธ
+                  </Button>
+                </Stack>
+              </Box>
+            ))}
+
+            {!registrationRequests.length && !requestsError && (
+              <Box
+                sx={{
+                  py: 4,
+                  px: 2,
+                  borderRadius: 1,
+                  textAlign: 'center',
+                  bgcolor: 'background.neutral',
+                }}
+              >
+                <Iconify width={40} icon="solar:users-group-rounded-bold-duotone" />
+                <Typography sx={{ mt: 1, fontWeight: 800 }}>ไม่มีคำขอรออนุมัติ</Typography>
+                <Typography variant="body2" sx={{ mt: 0.5, color: 'text.secondary' }}>
+                  เมื่อ user ลงทะเบียนใหม่ รายการจะมาแสดงในส่วนนี้
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Box
         sx={{

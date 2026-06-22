@@ -17,15 +17,22 @@ type GuestGuardProps = {
   children: React.ReactNode;
 };
 
+const getUserRedirectUrl = (returnTo: string | null) => {
+  const redirectUrl = safeReturnUrl(returnTo, CONFIG.auth.redirectPath);
+
+  return redirectUrl.startsWith('/admin') ? CONFIG.auth.redirectPath : redirectUrl;
+};
+
 export function GuestGuard({ children }: GuestGuardProps) {
   const router = useRouter();
 
-  const { loading, authenticated } = useAuthContext();
+  const { user, loading, authenticated } = useAuthContext();
 
   const [isChecking, setIsChecking] = useState(true);
 
   const searchParams = useSearchParams();
-  const redirectUrl = safeReturnUrl(searchParams.get('returnTo'), CONFIG.auth.redirectPath);
+  const redirectUrl =
+    user?.role === 'admin' ? '/admin' : getUserRedirectUrl(searchParams.get('returnTo'));
 
   const checkPermissions = async (): Promise<void> => {
     if (loading) {
@@ -43,7 +50,7 @@ export function GuestGuard({ children }: GuestGuardProps) {
   useEffect(() => {
     checkPermissions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, loading]);
+  }, [authenticated, loading, redirectUrl]);
 
   if (isChecking) {
     return <SplashScreen />;

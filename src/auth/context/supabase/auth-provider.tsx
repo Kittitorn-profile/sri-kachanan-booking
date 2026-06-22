@@ -5,8 +5,8 @@ import type { AuthState } from '../../types';
 import { useSetState } from 'minimal-shared/hooks';
 import { useMemo, useEffect, useCallback } from 'react';
 
-import axios from 'src/lib/axios';
 import { supabase } from 'src/lib/supabase';
+import axios, { endpoints } from 'src/lib/axios';
 
 import { AuthContext } from '../auth-context';
 
@@ -21,6 +21,45 @@ import { AuthContext } from '../auth-context';
 type Props = {
   children: React.ReactNode;
 };
+
+type UserProfileAuth = {
+  display_name: string;
+  role: 'admin' | 'user';
+  approval_status: 'pending' | 'approved' | 'rejected';
+};
+
+function getSessionProfile(user: NonNullable<AuthState['user']>['user']): UserProfileAuth {
+  const metadata = user.user_metadata ?? {};
+  const isWebRegistered = metadata.account_source === 'web' || Boolean(metadata.requested_at);
+  const role = (metadata.role as UserProfileAuth['role'] | undefined) ?? (isWebRegistered ? 'user' : 'admin');
+
+  return {
+    display_name:
+      (metadata.display_name as string | undefined) ||
+      user.email ||
+      (role === 'admin' ? 'Super Admin' : ''),
+    role,
+    approval_status:
+      role === 'admin'
+        ? 'approved'
+        : ((metadata.approval_status as UserProfileAuth['approval_status'] | undefined) ??
+          'pending'),
+  };
+}
+
+async function syncProfile(accessToken: string): Promise<UserProfileAuth> {
+  const { data } = await axios.post<{ profile: UserProfileAuth }>(
+    endpoints.auth.syncProfile,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  return data.profile;
+}
 
 export function AuthProvider({ children }: Props) {
   const { state, setState } = useSetState<AuthState>({ user: null, loading: true });
@@ -40,9 +79,27 @@ export function AuthProvider({ children }: Props) {
 
       if (session) {
         const accessToken = session?.access_token;
+        const sessionUser = {
+          ...session,
+          ...session?.user,
+          profile: getSessionProfile(session.user),
+        };
 
-        setState({ user: { ...session, ...session?.user }, loading: false });
+        setState({
+          user: sessionUser,
+          loading: false,
+        });
         axios.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+
+        const syncedProfile = await syncProfile(accessToken);
+
+        setState({
+          user: {
+            ...sessionUser,
+            profile: syncedProfile,
+          },
+          loading: false,
+        });
       } else {
         setState({ user: null, loading: false });
         delete axios.defaults.headers.common.Authorization;
@@ -71,8 +128,9 @@ export function AuthProvider({ children }: Props) {
             ...state.user,
             id: state.user?.id,
             accessToken: state.user?.access_token,
-            displayName: state.user?.user_metadata.display_name,
-            role: state.user?.role ?? 'admin',
+            displayName: state.user?.profile?.display_name ?? state.user?.email,
+            role: state.user?.profile?.role ?? 'user',
+            approvalStatus: state.user?.profile?.approval_status,
           }
         : null,
       checkUserSession,

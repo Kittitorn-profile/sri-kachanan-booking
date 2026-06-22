@@ -4,6 +4,7 @@ import * as z from 'zod';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useBoolean } from 'minimal-shared/hooks';
+import { safeReturnUrl } from 'minimal-shared/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import Box from '@mui/material/Box';
@@ -14,8 +15,8 @@ import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 
 import { paths } from 'src/routes/paths';
-import { useRouter } from 'src/routes/hooks';
 import { RouterLink } from 'src/routes/components';
+import { useRouter, useSearchParams } from 'src/routes/hooks';
 
 import { Iconify } from 'src/components/iconify';
 import { Form, Field, schemaUtils } from 'src/components/hook-form';
@@ -37,10 +38,17 @@ export const SignInSchema = z.object({
     .min(6, { error: 'Password must be at least 6 characters!' }),
 });
 
+const getUserRedirectPath = (returnTo: string | null) => {
+  const redirectPath = safeReturnUrl(returnTo, '/');
+
+  return redirectPath.startsWith('/admin') ? '/' : redirectPath;
+};
+
 // ----------------------------------------------------------------------
 
 export function SupabaseSignInView() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const showPassword = useBoolean();
 
@@ -49,8 +57,8 @@ export function SupabaseSignInView() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const defaultValues: SignInSchemaType = {
-    email: 'admin@gmail.com',
-    password: 'P@ssw0rd',
+    email: '',
+    password: '',
   };
 
   const methods = useForm({
@@ -65,10 +73,14 @@ export function SupabaseSignInView() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      await signInWithPassword({ email: data.email, password: data.password });
+      const response = await signInWithPassword({ email: data.email, password: data.password });
       await checkUserSession?.();
 
-      router.refresh();
+      const role = response.data.profile.role;
+      const redirectPath =
+        role === 'admin' ? '/admin' : getUserRedirectPath(searchParams.get('returnTo'));
+
+      router.replace(redirectPath);
     } catch (error) {
       console.error(error);
       const feedbackMessage = getErrorMessage(error);

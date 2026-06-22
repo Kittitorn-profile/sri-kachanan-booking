@@ -10,11 +10,11 @@ import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 
 import { paths } from 'src/routes/paths';
-import { useRouter } from 'src/routes/hooks';
 import { RouterLink } from 'src/routes/components';
 
 import { Iconify } from 'src/components/iconify';
@@ -30,23 +30,22 @@ import { SignUpTerms } from '../../components/sign-up-terms';
 export type SignUpSchemaType = z.infer<typeof SignUpSchema>;
 
 export const SignUpSchema = z.object({
-  firstName: z.string().min(1, { error: 'First name is required!' }),
-  lastName: z.string().min(1, { error: 'Last name is required!' }),
+  firstName: z.string().min(1, { error: 'กรุณากรอกชื่อ' }),
+  lastName: z.string().min(1, { error: 'กรุณากรอกนามสกุล' }),
   email: schemaUtils.email(),
   password: z
     .string()
-    .min(1, { error: 'Password is required!' })
-    .min(6, { error: 'Password must be at least 6 characters!' }),
+    .min(1, { error: 'กรุณากรอกรหัสผ่าน' })
+    .min(6, { error: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' }),
 });
 
 // ----------------------------------------------------------------------
 
 export function SupabaseSignUpView() {
-  const router = useRouter();
-
   const showPassword = useBoolean();
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [requestSent, setRequestSent] = useState(false);
 
   const defaultValues: SignUpSchemaType = {
     firstName: '',
@@ -74,7 +73,7 @@ export function SupabaseSignUpView() {
         lastName: data.lastName,
       });
 
-      router.push(paths.auth.supabase.verify);
+      setRequestSent(true);
     } catch (error) {
       console.error(error);
       const feedbackMessage = getErrorMessage(error);
@@ -89,22 +88,22 @@ export function SupabaseSignUpView() {
       >
         <Field.Text
           name="firstName"
-          label="First name"
+          label="ชื่อ"
           slotProps={{ inputLabel: { shrink: true } }}
         />
         <Field.Text
           name="lastName"
-          label="Last name"
+          label="นามสกุล"
           slotProps={{ inputLabel: { shrink: true } }}
         />
       </Box>
 
-      <Field.Text name="email" label="Email address" slotProps={{ inputLabel: { shrink: true } }} />
+      <Field.Text name="email" label="อีเมล" slotProps={{ inputLabel: { shrink: true } }} />
 
       <Field.Text
         name="password"
-        label="Password"
-        placeholder="6+ characters"
+        label="รหัสผ่าน"
+        placeholder="อย่างน้อย 6 ตัวอักษร"
         type={showPassword.value ? 'text' : 'password'}
         slotProps={{
           inputLabel: { shrink: true },
@@ -127,9 +126,38 @@ export function SupabaseSignUpView() {
         type="submit"
         variant="contained"
         loading={isSubmitting}
-        loadingIndicator="Create account..."
+        loadingIndicator="กำลังส่งคำขอ..."
       >
-        Create account
+        ส่งคำขอลงทะเบียน
+      </Button>
+    </Box>
+  );
+
+  const renderPendingRequest = () => (
+    <Box
+      sx={{
+        p: 3,
+        borderRadius: 1,
+        color: '#101513',
+        bgcolor: '#f8f2e9',
+        border: '1px solid rgba(44, 49, 45, 0.08)',
+      }}
+    >
+      <Iconify width={42} icon="solar:check-circle-bold" />
+      <Typography sx={{ mt: 2, fontSize: 24, fontWeight: 950 }}>
+        ส่งคำขอลงทะเบียนแล้ว
+      </Typography>
+      <Typography sx={{ mt: 1, color: '#64706b', lineHeight: 1.8 }}>
+        กรุณารอผู้ดูแลระบบอนุมัติบัญชีของคุณก่อน จึงจะสามารถเข้าสู่ระบบและจองคิวได้
+      </Typography>
+      <Button
+        fullWidth
+        component={RouterLink}
+        href={paths.auth.supabase.signIn}
+        variant="contained"
+        sx={{ mt: 3 }}
+      >
+        ไปหน้าเข้าสู่ระบบ
       </Button>
     </Box>
   );
@@ -137,12 +165,12 @@ export function SupabaseSignUpView() {
   return (
     <>
       <FormHead
-        title="Get started absolutely free"
+        title="ลงทะเบียนสมาชิก"
         description={
           <>
-            {`Already have an account? `}
+            {`มีบัญชีอยู่แล้ว? `}
             <Link component={RouterLink} href={paths.auth.supabase.signIn} variant="subtitle2">
-              Get started
+              เข้าสู่ระบบ
             </Link>
           </>
         }
@@ -155,11 +183,15 @@ export function SupabaseSignUpView() {
         </Alert>
       )}
 
-      <Form methods={methods} onSubmit={onSubmit}>
-        {renderForm()}
-      </Form>
+      {requestSent ? (
+        renderPendingRequest()
+      ) : (
+        <Form methods={methods} onSubmit={onSubmit}>
+          {renderForm()}
+        </Form>
+      )}
 
-      <SignUpTerms />
+      {!requestSent && <SignUpTerms />}
     </>
   );
 }

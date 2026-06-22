@@ -1,6 +1,8 @@
 import { DashboardLayout } from 'src/layouts/dashboard';
 import { adminNavData } from 'src/layouts/nav-config-admin';
 
+import { AdminGuard } from 'src/auth/guard';
+
 // ----------------------------------------------------------------------
 
 type Props = {
@@ -8,5 +10,9 @@ type Props = {
 };
 
 export default function Layout({ children }: Props) {
-  return <DashboardLayout slotProps={{ nav: { data: adminNavData } }}>{children}</DashboardLayout>;
+  return (
+    <AdminGuard>
+      <DashboardLayout slotProps={{ nav: { data: adminNavData } }}>{children}</DashboardLayout>
+    </AdminGuard>
+  );
 }

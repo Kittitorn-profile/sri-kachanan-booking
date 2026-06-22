@@ -1,6 +1,6 @@
 import { MainLayout } from 'src/layouts/main';
 
-import { AuthGuard } from 'src/auth/guard';
+import { UserGuard } from 'src/auth/guard';
 
 // ----------------------------------------------------------------------
 
@@ -10,8 +10,8 @@ type Props = {
 
 export default function Layout({ children }: Props) {
   return (
-    <AuthGuard>
+    <UserGuard>
       <MainLayout slotProps={{ footer: { sx: { bgcolor: '#efe3d4' } } }}>{children}</MainLayout>
-    </AuthGuard>
+    </UserGuard>
   );
 }
