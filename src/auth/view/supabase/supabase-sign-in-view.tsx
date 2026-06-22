@@ -49,8 +49,8 @@ export function SupabaseSignInView() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const defaultValues: SignInSchemaType = {
-    email: '',
-    password: '',
+    email: 'admin@gmail.com',
+    password: 'P@ssw0rd',
   };
 
   const methods = useForm({
@@ -78,7 +78,7 @@ export function SupabaseSignInView() {
 
   const renderForm = () => (
     <Box sx={{ gap: 3, display: 'flex', flexDirection: 'column' }}>
-      <Field.Text name="email" label="Email address" slotProps={{ inputLabel: { shrink: true } }} />
+      <Field.Text name="email" label="อีเมล" slotProps={{ inputLabel: { shrink: true } }} />
 
       <Box sx={{ gap: 1.5, display: 'flex', flexDirection: 'column' }}>
         <Link
@@ -88,13 +88,13 @@ export function SupabaseSignInView() {
           color="inherit"
           sx={{ alignSelf: 'flex-end' }}
         >
-          Forgot password?
+          ลืมรหัสผ่าน?
         </Link>
 
         <Field.Text
           name="password"
-          label="Password"
-          placeholder="6+ characters"
+          label="รหัสผ่าน"
+          placeholder="อย่างน้อย 6 ตัวอักษร"
           type={showPassword.value ? 'text' : 'password'}
           slotProps={{
             inputLabel: { shrink: true },
@@ -120,9 +120,9 @@ export function SupabaseSignInView() {
         type="submit"
         variant="contained"
         loading={isSubmitting}
-        loadingIndicator="Sign in..."
+        loadingIndicator="กำลังเข้าสู่ระบบ..."
       >
-        Sign in
+        เข้าสู่ระบบ
       </Button>
     </Box>
   );
@@ -130,12 +130,12 @@ export function SupabaseSignInView() {
   return (
     <>
       <FormHead
-        title="Sign in to your account"
+        title="เข้าสู่ระบบสมาชิก"
         description={
           <>
-            {`Don’t have an account? `}
+            {`ยังไม่มีบัญชี? `}
             <Link component={RouterLink} href={paths.auth.supabase.signUp} variant="subtitle2">
-              Get started
+              สมัครสมาชิก
             </Link>
           </>
         }

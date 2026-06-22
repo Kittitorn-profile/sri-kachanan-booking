@@ -19,6 +19,7 @@ import { NavDesktop } from './nav/desktop';
 import { Footer, HomeFooter } from './footer';
 import { MenuButton } from '../components/menu-button';
 import { navData as mainNavData } from '../nav-config-main';
+import { AccountPopover } from '../components/account-popover';
 import { MainSection, LayoutSection, HeaderSection } from '../core';
 
 // ----------------------------------------------------------------------
@@ -94,6 +95,7 @@ export function MainLayout({
             {/** @slot Sign in button */}
             {/* <SignInButton /> */}
 
+            <AccountPopover />
             {/** @slot Purchase button */}
             {/* <Button
               variant="contained"

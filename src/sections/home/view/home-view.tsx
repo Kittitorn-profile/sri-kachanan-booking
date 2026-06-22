@@ -40,19 +40,6 @@ const services = [
   },
 ];
 
-const timeSlots = ['10:00', '11:30', '13:00', '14:30', '16:00', '17:30'];
-
-const bookingHistory = [
-  { service: 'นวดน้ำมันคชานัน', date: '24 มิ.ย. 2026', time: '14:30', status: 'ยืนยันแล้ว' },
-  { service: 'พิธีผิวใสสมุนไพร', date: '30 มิ.ย. 2026', time: '11:30', status: 'รอชำระเงิน' },
-];
-
-const reviews = [
-  'จองง่าย เลือกเวลาได้ชัดเจน พนักงานโทรยืนยันเร็วมาก',
-  'บริการละเอียด บรรยากาศสงบ และประวัติการจองดูย้อนหลังได้สะดวก',
-  'เลื่อนนัดผ่านมือถือได้ ไม่ต้องโทรหลายรอบ เหมาะกับลูกค้าประจำ',
-];
-
 function SectionTitle({
   eyebrow,
   title,
@@ -120,6 +107,7 @@ export function HomeView() {
           minHeight: { xs: 720, md: 820 },
           position: 'relative',
           bgcolor: '#f8f2e9',
+          mb: { xs: -9, md: -12 },
         }}
       >
         <Image
@@ -144,14 +132,28 @@ export function HomeView() {
             inset: 0,
             position: 'absolute',
             background:
-              'linear-gradient(180deg, rgba(250,246,237,0.66) 0%, rgba(250,246,237,0.16) 44%, rgba(248,242,233,0.94) 100%)',
+              'linear-gradient(180deg, rgba(250,246,237,0.68) 0%, rgba(250,246,237,0.2) 38%, rgba(248,242,233,0.72) 74%, #f8f2e9 100%)',
+          }}
+        />
+
+        <Box
+          sx={{
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1,
+            height: { xs: 220, md: 300 },
+            position: 'absolute',
+            pointerEvents: 'none',
+            background:
+              'linear-gradient(180deg, rgba(248,242,233,0) 0%, rgba(248,242,233,0.72) 42%, #f8f2e9 88%)',
           }}
         />
 
         <Container
           maxWidth="lg"
           sx={{
-            zIndex: 1,
+            zIndex: 2,
             height: 1,
             minHeight: { xs: 720, md: 820 },
             display: 'flex',
@@ -195,7 +197,7 @@ export function HomeView() {
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
               <Button
                 size="large"
-                href="#booking"
+                href="/booking"
                 variant="contained"
                 startIcon={<Iconify icon="solar:calendar-date-bold" />}
                 sx={{ borderRadius: 999, bgcolor: '#101513' }}
@@ -216,7 +218,15 @@ export function HomeView() {
         </Container>
       </Box>
 
-      <Box id="services" sx={{ py: { xs: 8, md: 12 }, bgcolor: '#f8f2e9' }}>
+      <Box
+        id="services"
+        sx={{
+          pt: { xs: 17, md: 24 },
+          pb: { xs: 8, md: 12 },
+          position: 'relative',
+          bgcolor: '#f8f2e9',
+        }}
+      >
         <Container maxWidth="lg">
           <SectionTitle
             eyebrow="บริการสปา"
@@ -256,7 +266,7 @@ export function HomeView() {
                   </Typography>
                   <Stack direction="row" alignItems="center" justifyContent="space-between">
                     <Typography sx={{ fontSize: 24, fontWeight: 900 }}>฿{service.price}</Typography>
-                    <Button href="#booking" variant="contained" sx={{ borderRadius: 999 }}>
+                    <Button href="/booking" variant="contained" sx={{ borderRadius: 999 }}>
                       เลือกบริการ
                     </Button>
                   </Stack>
@@ -266,244 +276,6 @@ export function HomeView() {
           </Box>
         </Container>
       </Box>
-
-      <Box
-        id="booking"
-        sx={{
-          py: { xs: 8, md: 12 },
-          bgcolor: '#eef3ef',
-          borderTop: '1px solid rgba(44, 49, 45, 0.08)',
-          borderBottom: '1px solid rgba(44, 49, 45, 0.08)',
-        }}
-      >
-        <Container maxWidth="lg">
-          <Box
-            sx={{
-              display: 'grid',
-              gap: { xs: 3, md: 4 },
-              alignItems: 'start',
-              gridTemplateColumns: { xs: '1fr', md: '0.95fr 1.05fr' },
-            }}
-          >
-            <Box>
-              <SectionTitle
-                eyebrow="เลือกวันและเวลา"
-                title="ป้องกันการจองเวลาซ้ำด้วยตารางเวลาว่าง"
-                body="ตัวอย่าง UI แสดงวันที่ เลือกพนักงาน เลือกช่วงเวลา และแจ้งเตือนเวลาที่ถูกจองแล้วก่อนกดยืนยัน"
-              />
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 1,
-                  bgcolor: '#fff',
-                  border: '1px solid rgba(44, 49, 45, 0.08)',
-                }}
-              >
-                <Stack direction="row" spacing={1.2} sx={{ mb: 2, overflowX: 'auto', pb: 0.5 }}>
-                  {['24 มิ.ย.', '25 มิ.ย.', '26 มิ.ย.', '27 มิ.ย.'].map((date, index) => (
-                    <Button
-                      key={date}
-                      variant={index === 0 ? 'contained' : 'outlined'}
-                      sx={{ minWidth: 104, borderRadius: 1 }}
-                    >
-                      {date}
-                    </Button>
-                  ))}
-                </Stack>
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gap: 1,
-                    gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
-                  }}
-                >
-                  {timeSlots.map((time, index) => (
-                    <Button
-                      key={time}
-                      disabled={index === 2}
-                      variant={index === 3 ? 'contained' : 'outlined'}
-                      startIcon={<Iconify icon="solar:clock-circle-bold" />}
-                      sx={{ height: 48, borderRadius: 1 }}
-                    >
-                      {time}
-                    </Button>
-                  ))}
-                </Box>
-                <Typography sx={{ mt: 2, color: '#7a6a58', fontSize: 13 }}>
-                  เวลา 13:00 ถูกจองแล้ว ระบบจะไม่อนุญาตให้จองซ้ำในรอบเดียวกัน
-                </Typography>
-              </Box>
-            </Box>
-
-            <Box
-              sx={{
-                p: { xs: 2.5, md: 3 },
-                borderRadius: 1,
-                bgcolor: '#fff',
-                border: '1px solid rgba(44, 49, 45, 0.08)',
-                boxShadow: '0 22px 60px rgba(45, 55, 50, 0.1)',
-              }}
-            >
-              <Stack direction="row" alignItems="center" spacing={1.2} sx={{ mb: 2.5 }}>
-                <Iconify width={28} icon="solar:bill-list-bold-duotone" />
-                <Typography sx={{ fontSize: 22, fontWeight: 950 }}>จองคิวออนไลน์</Typography>
-              </Stack>
-              <Stack spacing={1.5}>
-                {['ชื่อ-นามสกุล', 'เบอร์โทรศัพท์', 'เลือกบริการ', 'เลือกพนักงาน'].map((label) => (
-                  <Box
-                    key={label}
-                    sx={{
-                      px: 1.6,
-                      height: 50,
-                      display: 'flex',
-                      borderRadius: 1,
-                      color: '#7a8580',
-                      alignItems: 'center',
-                      bgcolor: '#f7faf8',
-                      border: '1px solid #e4ebe6',
-                    }}
-                  >
-                    {label}
-                  </Box>
-                ))}
-                <Box
-                  sx={{
-                    p: 1.6,
-                    minHeight: 84,
-                    borderRadius: 1,
-                    color: '#7a8580',
-                    bgcolor: '#f7faf8',
-                    border: '1px solid #e4ebe6',
-                  }}
-                >
-                  หมายเหตุถึงร้าน
-                </Box>
-                <Button
-                  size="large"
-                  variant="contained"
-                  startIcon={<Iconify icon="solar:check-circle-bold" />}
-                  sx={{ height: 52, borderRadius: 999, bgcolor: '#101513' }}
-                >
-                  ยืนยันการจอง
-                </Button>
-              </Stack>
-            </Box>
-          </Box>
-        </Container>
-      </Box>
-
-      <Box id="account" sx={{ py: { xs: 8, md: 12 }, bgcolor: '#f8f2e9' }}>
-        <Container maxWidth="lg">
-          <Box
-            sx={{
-              display: 'grid',
-              gap: 3,
-              gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-            }}
-          >
-            <Box>
-              <SectionTitle
-                eyebrow="บัญชีลูกค้า"
-                title="ประวัติการจอง เลื่อนนัด ยกเลิก และรีวิวบริการ"
-              />
-              <Stack spacing={1.5}>
-                {bookingHistory.map((booking) => (
-                  <Box
-                    key={`${booking.service}-${booking.time}`}
-                    sx={{
-                      p: 2,
-                      borderRadius: 1,
-                      bgcolor: '#fff',
-                      border: '1px solid rgba(44, 49, 45, 0.08)',
-                    }}
-                  >
-                    <Stack
-                      direction={{ xs: 'column', sm: 'row' }}
-                      spacing={1.5}
-                      justifyContent="space-between"
-                    >
-                      <Box>
-                        <Typography sx={{ fontWeight: 900 }}>{booking.service}</Typography>
-                        <Typography sx={{ color: '#6f7a75', fontSize: 14 }}>
-                          {booking.date} เวลา {booking.time}
-                        </Typography>
-                      </Box>
-                      <Pill>{booking.status}</Pill>
-                    </Stack>
-                    <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-                      <Button size="small" variant="outlined" sx={{ borderRadius: 999 }}>
-                        เลื่อนนัด
-                      </Button>
-                      <Button
-                        size="small"
-                        color="error"
-                        variant="outlined"
-                        sx={{ borderRadius: 999 }}
-                      >
-                        ยกเลิก
-                      </Button>
-                      <Button size="small" variant="contained" sx={{ borderRadius: 999 }}>
-                        รีวิว
-                      </Button>
-                    </Stack>
-                  </Box>
-                ))}
-              </Stack>
-            </Box>
-
-            <Box>
-              <SectionTitle eyebrow="สมาชิก" title="สมัครสมาชิก / เข้าสู่ระบบ" />
-              <Box
-                sx={{
-                  p: 3,
-                  borderRadius: 1,
-                  bgcolor: '#101513',
-                  color: '#fff',
-                }}
-              >
-                <Stack spacing={1.5}>
-                  <Typography sx={{ fontSize: 24, fontWeight: 950 }}>
-                    เข้าสู่ระบบเพื่อจัดการนัดหมาย
-                  </Typography>
-                  <Typography sx={{ color: 'rgba(255,255,255,0.72)', lineHeight: 1.7 }}>
-                    ลูกค้าสามารถดูคิวล่าสุด รับคูปองส่วนตัว บันทึกบริการโปรด
-                    และให้คะแนนหลังรับบริการ
-                  </Typography>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      sx={{ bgcolor: '#f5ddba', color: '#101513' }}
-                    >
-                      เข้าสู่ระบบ
-                    </Button>
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      sx={{ color: '#fff', borderColor: '#fff' }}
-                    >
-                      สมัครสมาชิก
-                    </Button>
-                  </Stack>
-                </Stack>
-              </Box>
-              <Stack spacing={1.2} sx={{ mt: 2 }}>
-                {reviews.map((review) => (
-                  <Box key={review} sx={{ p: 2, borderRadius: 1, bgcolor: '#fff' }}>
-                    <Stack direction="row" spacing={0.5} sx={{ color: '#c9802f', mb: 0.8 }}>
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Iconify key={star} icon="solar:cup-star-bold" />
-                      ))}
-                    </Stack>
-                    <Typography sx={{ color: '#5f6a65', lineHeight: 1.7 }}>{review}</Typography>
-                  </Box>
-                ))}
-              </Stack>
-            </Box>
-          </Box>
-        </Container>
-      </Box>
-
     </Box>
   );
 }

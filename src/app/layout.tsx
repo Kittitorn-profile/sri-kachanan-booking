@@ -34,7 +34,7 @@ const AuthProvider =
   JwtAuthProvider;
 
 const OG_IMAGE_URL =
-  'https://res.cloudinary.com/dkdbilwtj/image/upload/v1781623827/og-images_wrlxnc.jpg';
+  'https://res.cloudinary.com/dkdbilwtj/image/upload/v1782112704/og-images_beb5v4.jpg';
 
 export const viewport: Viewport = {
   width: 'device-width',

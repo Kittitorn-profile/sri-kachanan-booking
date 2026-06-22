@@ -20,6 +20,7 @@ export const paths = {
   maintenance: '/maintenance',
   pricing: '/pricing',
   payment: '/payment',
+  booking: '/booking',
   about: '/about-us',
   contact: '/contact-us',
   faqs: '/faqs',

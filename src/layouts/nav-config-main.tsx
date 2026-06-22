@@ -1,5 +1,7 @@
 import type { NavMainProps } from './main/nav/types';
 
+import { paths } from 'src/routes/paths';
+
 import { Iconify } from 'src/components/iconify';
 
 // ----------------------------------------------------------------------
@@ -17,12 +19,12 @@ export const navData: NavMainProps['data'] = [
   },
   {
     title: 'จองคิว',
-    path: '/#booking',
+    path: paths.booking,
     icon: <Iconify width={22} icon="solar:calendar-date-bold" />,
   },
   {
-    title: 'สมาชิก',
-    path: '/#account',
+    title: 'นัดหมายของฉัน',
+    path: paths.booking,
     icon: <Iconify width={22} icon="solar:user-rounded-bold" />,
   },
   {
