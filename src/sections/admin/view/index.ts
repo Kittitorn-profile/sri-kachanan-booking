@@ -3,7 +3,7 @@ export * from './admin-staff-view';
 export * from './admin-revenue-view';
 export * from './admin-category-view';
 export * from './admin-services-view';
-export * from './admin-promotions-view';
 export * from './admin-customers-view';
+export * from './admin-promotions-view';
 export * from './admin-availability-view';
 export * from './admin-registration-requests-view';

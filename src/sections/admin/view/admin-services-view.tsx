@@ -52,9 +52,9 @@ type SpaBookingRequest = {
   jobImageUrls: string[];
   jobOpenedAt?: string;
   service: string;
+  category: string;
   duration: string;
   price: number;
-  staff: string;
   date: string;
   time: string;
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
@@ -182,7 +182,7 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
         booking.customerEmail,
         booking.phone,
         booking.service,
-        booking.staff,
+        booking.category,
         booking.date,
         booking.time,
         booking.customerNote,
@@ -233,7 +233,7 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
           subheader={
             isWorkingMode
               ? 'รายการจะเข้าหน้านี้ก็ต่อเมื่อ user กดเปิดงานจากนัดหมายเดิม'
-              : 'พนักงานหรือแอดมินกดยืนยันคิว เพื่อให้ user เปิดงานเมื่อถึงวันที่จอง'
+              : 'ร้านหรือแอดมินกดยืนยันคิว เพื่อให้ user เปิดงานเมื่อถึงวันที่จอง'
           }
         />
         <CardContent>
@@ -246,7 +246,7 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
           <TextField
             fullWidth
             value={searchQuery}
-            placeholder="ค้นหาเลขจอง ลูกค้า เบอร์โทร บริการ หรือพนักงาน"
+            placeholder="ค้นหาเลขจอง ลูกค้า เบอร์โทร บริการ หรือหมวดหมู่"
             onChange={(event) => setSearchQuery(event.target.value)}
             sx={{ mb: 2 }}
             slotProps={{
@@ -290,7 +290,7 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
             <Table sx={{ minWidth: 1100 }}>
               <TableHead>
                 <TableRow>
-                  {['เลขจอง/ลูกค้า', 'บริการ', 'วันเวลา', 'พนักงาน', 'รูป', 'สถานะ', 'จัดการ'].map(
+                  {['เลขจอง/ลูกค้า', 'บริการ', 'วันเวลา', 'หมวดหมู่', 'รูป', 'สถานะ', 'จัดการ'].map(
                     (column) => (
                       <TableCell key={column} sx={{ color: 'text.secondary', fontWeight: 800 }}>
                         {column}
@@ -303,7 +303,7 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
                 {paginatedBookings.map((booking) => {
                   const status = bookingStatusMeta[booking.status];
                   const canConfirm = booking.status === 'pending';
-                  const canCloseJob = ['confirmed', 'in_progress'].includes(booking.status);
+                  const canCloseJob = isWorkingMode && booking.status === 'in_progress';
                   const canCancel = !['completed', 'cancelled'].includes(booking.status);
 
                   return (
@@ -327,7 +327,7 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">{booking.staff}</Typography>
+                        <Typography variant="body2">{booking.category}</Typography>
                       </TableCell>
                       <TableCell>
                         <Chip
@@ -365,20 +365,22 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
                               ยืนยันคิว
                             </Button>
                           )}
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            disabled={!canCloseJob}
-                            onClick={() =>
-                              updateBookingStatus.mutate({
-                                bookingId: booking.id,
-                                status: 'completed',
-                              })
-                            }
-                            startIcon={<Iconify icon="solar:check-circle-bold" />}
-                          >
-                            ปิดงาน
-                          </Button>
+                          {isWorkingMode && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              disabled={!canCloseJob}
+                              onClick={() =>
+                                updateBookingStatus.mutate({
+                                  bookingId: booking.id,
+                                  status: 'completed',
+                                })
+                              }
+                              startIcon={<Iconify icon="solar:check-circle-bold" />}
+                            >
+                              ปิดงาน
+                            </Button>
+                          )}
                           <Button
                             size="small"
                             color="error"
@@ -471,7 +473,7 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
                   label="ราคา/ระยะเวลา"
                   value={`${viewingBooking.duration} / ${viewingBooking.price.toLocaleString()} บาท`}
                 />
-                <DetailItem label="พนักงาน" value={viewingBooking.staff} />
+                <DetailItem label="หมวดหมู่" value={viewingBooking.category} />
                 <DetailItem label="หมายเหตุ" value={viewingBooking.customerNote || '-'} />
                 <DetailItem label="เปิดงานเมื่อ" value={viewingBooking.jobOpenedAt || '-'} />
                 <DetailItem label="สินค้าที่ทำความสะอาด" value={viewingBooking.jobItems || '-'} />

@@ -24,8 +24,8 @@ import TablePagination from '@mui/material/TablePagination';
 import FormControlLabel from '@mui/material/FormControlLabel';
 
 import { endpoints } from 'src/lib/axios';
-import { useAuthedMutation } from 'src/api/use-authed-query';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { useAuthedMutation } from 'src/api/use-authed-query';
 
 import { Iconify } from 'src/components/iconify';
 

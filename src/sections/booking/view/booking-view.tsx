@@ -38,15 +38,16 @@ import { Iconify } from 'src/components/iconify';
 type SpaService = {
   id: string;
   name: string;
+  categoryId: string | null;
   duration: string;
   durationMinutes: number;
   price: number;
 };
 
-type SpaStaff = {
+type SpaCategory = {
   id: string;
   name: string;
-  specialty: string;
+  description: string;
 };
 
 type AvailabilityDay = {
@@ -57,10 +58,10 @@ type AvailabilityDay = {
   isClosed: boolean;
   openTime: string;
   closeTime: string;
-  slotIntervalMinutes: number;
-  maxBookingsPerDay: number;
+  slotIntervalMinutes: number | null;
+  maxBookingsPerDay: number | null;
   bookedCount: number;
-  remainingBookings: number;
+  remainingBookings: number | null;
   note: string;
   slots: string[];
 };
@@ -73,14 +74,15 @@ type BookingItem = {
   id: string;
   bookingNo: string;
   serviceId: string;
+  categoryId: string | null;
   service: string;
   duration: string;
   price: number;
   date: string;
   dateLabel: string;
   time: string;
-  staffId: string;
-  staff: string;
+  staffId?: string;
+  staff?: string;
   customerName: string;
   phone: string;
   customerNote: string;
@@ -94,9 +96,9 @@ type BookingItem = {
 
 type BookingForm = {
   serviceId: string;
+  categoryId: string;
   date: string;
   time: string;
-  staffId: string;
   customerName: string;
   phone: string;
   customerNote: string;
@@ -114,7 +116,6 @@ type BookingApiResponse = {
     phone?: string;
   };
   services: SpaService[];
-  staff: SpaStaff[];
   availability: AvailabilityDay[];
   bookings: Omit<BookingItem, 'dateLabel' | 'note'>[];
 };
@@ -127,7 +128,7 @@ const statusTabs: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'ทั้งหมด' },
   { value: 'pending', label: 'รอยืนยันคิว' },
   { value: 'confirmed', label: 'ยืนยันคิวแล้ว' },
-  { value: 'in_progress', label: 'เปิดงานแล้ว' },
+  { value: 'in_progress', label: 'กำลังทำงาน' },
   { value: 'completed', label: 'ใช้บริการแล้ว' },
   { value: 'cancelled', label: 'ยกเลิก' },
 ];
@@ -135,7 +136,7 @@ const statusTabs: { value: StatusFilter; label: string }[] = [
 const statusMeta: Record<BookingStatus, { label: string; color: string; bgColor: string }> = {
   pending: { label: 'รอยืนยันคิว', color: '#8a5b26', bgColor: '#f5ddba' },
   confirmed: { label: 'ยืนยันคิวแล้ว', color: '#1f6f4a', bgColor: '#dff4e7' },
-  in_progress: { label: 'เปิดงานแล้ว', color: '#6f4b1f', bgColor: '#f4eadf' },
+  in_progress: { label: 'กำลังทำงาน', color: '#6f4b1f', bgColor: '#f4eadf' },
   completed: { label: 'ใช้บริการแล้ว', color: '#315a8f', bgColor: '#dfeafa' },
   cancelled: { label: 'ยกเลิก', color: '#9b2f2f', bgColor: '#fde2df' },
 };
@@ -151,22 +152,33 @@ function formatDateLabel(date: Date) {
 }
 
 function toDateValue(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? '00';
+
+  return `${value('year')}-${value('month')}-${value('day')}`;
 }
 
-function canOpenBookingJob(booking: Pick<BookingItem, 'date' | 'time' | 'status'>) {
+function canOpenBookingJob(
+  booking: Pick<BookingItem, 'date' | 'time' | 'status'>,
+  nowMs = Date.now()
+) {
   if (booking.status !== 'confirmed') {
     return false;
   }
 
   const bookingDateTime = new Date(`${booking.date}T${booking.time}:00`);
 
-  return Date.now() >= bookingDateTime.getTime();
+  return nowMs >= bookingDateTime.getTime();
 }
 
 function getBookingNote(status: BookingStatus) {
   const notes: Record<BookingStatus, string> = {
-    pending: 'ส่งคำขอจองแล้ว รอพนักงานยืนยันคิว',
+    pending: 'ส่งคำขอจองแล้ว รอร้านยืนยันคิว',
     confirmed: 'ยืนยันคิวแล้ว เปิดงานได้เมื่อถึงวันและเวลาที่จอง',
     in_progress: 'เปิดงานแล้ว ร้านกำลังตรวจสอบสินค้าที่ส่งมา',
     completed: 'ปิดงานแล้ว สามารถให้คะแนนได้',
@@ -176,12 +188,12 @@ function getBookingNote(status: BookingStatus) {
   return notes[status];
 }
 
-function getEmptyBookingForm(date: string, serviceId = '', staffId = ''): BookingForm {
+function getEmptyBookingForm(date: string, serviceId = '', categoryId = ''): BookingForm {
   return {
     serviceId,
+    categoryId,
     date,
     time: '',
-    staffId,
     customerName: '',
     phone: '',
     customerNote: '',
@@ -194,6 +206,22 @@ function getEmptyOpenJobForm(): OpenJobForm {
     jobItems: '',
     jobImageUrls: ['', '', '', ''],
   };
+}
+
+function getUnavailableDateReason(date: AvailabilityDay) {
+  if (date.isClosed) {
+    return 'ปิดรับคิว';
+  }
+
+  if (date.remainingBookings === 0) {
+    return 'คิวเต็ม';
+  }
+
+  if (!date.slots.length) {
+    return 'ไม่มีเวลาว่าง';
+  }
+
+  return null;
 }
 
 function normalizeBooking(booking: Omit<BookingItem, 'dateLabel' | 'note'>): BookingItem {
@@ -236,8 +264,8 @@ function BookingDrawer({
   form,
   activeStep,
   bookings,
+  categories,
   services,
-  staffMembers,
   editingBooking,
   availableDates,
   errorMessage,
@@ -251,8 +279,8 @@ function BookingDrawer({
   form: BookingForm;
   activeStep: number;
   bookings: BookingItem[];
+  categories: SpaCategory[];
   services: SpaService[];
-  staffMembers: SpaStaff[];
   editingBooking: BookingItem | null;
   availableDates: AvailabilityDay[];
   errorMessage: string | null;
@@ -262,9 +290,10 @@ function BookingDrawer({
   onSubmit: () => void;
   onChange: (patch: Partial<BookingForm>) => void;
 }) {
-  const selectedService =
-    services.find((service) => service.id === form.serviceId) ?? services[0];
-  const selectedStaff = staffMembers.find((item) => item.id === form.staffId);
+  const selectedService = services.find((service) => service.id === form.serviceId);
+  const activeCategoryId =
+    form.categoryId || selectedService?.categoryId || categories[0]?.id || '';
+  const selectedCategory = categories.find((category) => category.id === activeCategoryId);
   const selectedDate = availableDates.find((date) => date.date === form.date);
   const selectedDateLabel = selectedDate?.fullLabel ?? form.date;
 
@@ -275,29 +304,47 @@ function BookingDrawer({
           booking.id !== editingBooking?.id &&
           booking.date === form.date &&
           booking.time === time &&
-          booking.staffId === form.staffId &&
           booking.status !== 'cancelled'
       ),
-    [bookings, editingBooking?.id, form.date, form.staffId]
+    [bookings, editingBooking?.id, form.date]
   );
 
   const renderServiceStep = () => (
     <Stack spacing={2}>
       <Typography sx={{ fontWeight: 900 }}>เลือกประเภทงานทำความสะอาดสินค้า</Typography>
-      {services.map((service) => (
-        <Button
-          key={service.id}
-          fullWidth
-          variant={form.serviceId === service.id ? 'contained' : 'outlined'}
-          onClick={() => onChange({ serviceId: service.id })}
-          sx={{ minHeight: 58, justifyContent: 'space-between', borderRadius: 1 }}
-        >
-          <span>{service.name}</span>
-          <span>
-            {service.duration} / {service.price.toLocaleString()} บาท
-          </span>
-        </Button>
-      ))}
+
+      {!categories.length && <Alert severity="warning">ยังไม่มีประเภทงานให้เลือก</Alert>}
+
+      {!!categories.length && (
+        <Stack direction="column" spacing={1} sx={{ pb: 0.5 }}>
+          {categories.map((category) => {
+            const firstService = services.find((service) => service.categoryId === category.id);
+            const isActive = activeCategoryId === category.id;
+
+            return (
+              <Button
+                key={category.id}
+                fullWidth
+                variant={isActive ? 'contained' : 'outlined'}
+                onClick={() =>
+                  onChange({
+                    categoryId: category.id,
+                    serviceId: firstService?.id ?? '',
+                  })
+                }
+                sx={{
+                  minHeight: 48,
+                  borderRadius: 1,
+                  justifyContent: 'space-between',
+                  textAlign: 'left',
+                }}
+              >
+                <span>{category.name}</span>
+              </Button>
+            );
+          })}
+        </Stack>
+      )}
     </Stack>
   );
 
@@ -309,29 +356,12 @@ function BookingDrawer({
           {availableDates.map((date) => (
             <Button
               key={date.id}
-              disabled={date.isClosed || date.remainingBookings <= 0 || !date.slots.length}
               variant={form.date === date.date ? 'contained' : 'outlined'}
               onClick={() => onChange({ date: date.date, time: '' })}
               sx={{ minWidth: 104, borderRadius: 1 }}
             >
               {date.label}
-            </Button>
-          ))}
-        </Stack>
-      </Box>
-
-      <Box>
-        <Typography sx={{ mb: 1.2, fontWeight: 900 }}>พนักงาน</Typography>
-        <Stack direction="row" spacing={1}>
-          {staffMembers.map((staffMember) => (
-            <Button
-              key={staffMember.id}
-              fullWidth
-              variant={form.staffId === staffMember.id ? 'contained' : 'outlined'}
-              onClick={() => onChange({ staffId: staffMember.id, time: '' })}
-              sx={{ height: 44, borderRadius: 1 }}
-            >
-              {staffMember.name}
+              {getUnavailableDateReason(date) ? ` (${getUnavailableDateReason(date)})` : ''}
             </Button>
           ))}
         </Stack>
@@ -365,7 +395,9 @@ function BookingDrawer({
         </Box>
         <Typography sx={{ mt: 1.2, color: '#7a6a58', fontSize: 13 }}>
           เปิดรับ {selectedDate?.openTime ?? '-'}-{selectedDate?.closeTime ?? '-'} น. เหลือ{' '}
-          {selectedDate?.remainingBookings ?? 0}/{selectedDate?.maxBookingsPerDay ?? 0} คิว
+          {selectedDate?.maxBookingsPerDay === null
+            ? 'ไม่จำกัดคิว'
+            : `${selectedDate?.remainingBookings ?? 0}/${selectedDate?.maxBookingsPerDay ?? 0} คิว`}
         </Typography>
         {selectedDate?.note && (
           <Typography sx={{ mt: 0.5, color: '#9b2f2f', fontSize: 13 }}>
@@ -374,7 +406,9 @@ function BookingDrawer({
         )}
         {selectedDate && !selectedDate.slots.length && (
           <Alert severity="warning" sx={{ mt: 1.5 }}>
-            วันนี้ไม่มีช่วงเวลาว่างให้จอง
+            {getUnavailableDateReason(selectedDate) === 'ไม่มีเวลาว่าง'
+              ? 'วันนี้ไม่มีช่วงเวลาว่างให้จอง หรือช่วงเวลาที่เปิดรับผ่านไปแล้ว'
+              : getUnavailableDateReason(selectedDate)}
           </Alert>
         )}
       </Box>
@@ -430,10 +464,8 @@ function BookingDrawer({
     <Stack spacing={1.5}>
       <Typography sx={{ fontWeight: 900 }}>ตรวจสอบนัดหมาย</Typography>
       {[
-        ['บริการ', selectedService ? `${selectedService.name} (${selectedService.duration})` : '-'],
-        ['ราคา', selectedService ? `${selectedService.price.toLocaleString()} บาท` : '-'],
+        ['บริการ', selectedCategory?.name ?? '-'],
         ['วันเวลา', `${selectedDateLabel} เวลา ${form.time || '-'}`],
-        ['พนักงาน', selectedStaff?.name ?? '-'],
         ['ผู้จอง', form.customerName || '-'],
         ['เบอร์โทร', form.phone || '-'],
         ['หมายเหตุ', form.customerNote || '-'],
@@ -550,7 +582,6 @@ export function BookingView() {
   const queryClient = useQueryClient();
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [services, setServices] = useState<SpaService[]>([]);
-  const [staffMembers, setStaffMembers] = useState<SpaStaff[]>([]);
   const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [serviceFilter, setServiceFilter] = useState('all');
@@ -564,33 +595,56 @@ export function BookingView() {
   const [openJobBooking, setOpenJobBooking] = useState<BookingItem | null>(null);
   const [editingBooking, setEditingBooking] = useState<BookingItem | null>(null);
   const [openJobError, setOpenJobError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const [bookingForm, setBookingForm] = useState<BookingForm>(() =>
     getEmptyBookingForm(toDateValue(new Date()))
   );
   const [openJobForm, setOpenJobForm] = useState<OpenJobForm>(() => getEmptyOpenJobForm());
+  const categoryQuery = useAuthedQuery<{ categories: SpaCategory[] }>({
+    queryKey: queryKeys.spaCategories,
+    url: endpoints.spaCategories,
+  });
   const bookingQuery = useAuthedQuery<BookingApiResponse>({
     queryKey: queryKeys.booking,
     url: endpoints.booking,
   });
-  const createBooking = useAuthedMutation<BookingMutationResponse, Omit<BookingForm, never>>({
+  const drawerCategories = useMemo(
+    () => categoryQuery.data?.categories ?? [],
+    [categoryQuery.data?.categories]
+  );
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 30000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+  const createBooking = useAuthedMutation<BookingMutationResponse, BookingForm>({
     method: 'post',
     url: endpoints.booking,
   });
   const updateBooking = useAuthedMutation<
     BookingMutationResponse,
     { bookingId: string } & Partial<BookingForm> &
-      Partial<OpenJobForm> & { status?: BookingStatus; reviewRating?: number; reviewComment?: string }
+      Partial<OpenJobForm> & {
+        status?: BookingStatus;
+        reviewRating?: number;
+        reviewComment?: string;
+      }
   >({
     method: 'patch',
     url: endpoints.booking,
   });
 
   useEffect(() => {
-    setLoadingBookingData(bookingQuery.isLoading);
+    setLoadingBookingData(bookingQuery.isLoading || categoryQuery.isLoading);
 
-    if (bookingQuery.error) {
-      setPageError(bookingQuery.error.message || 'โหลดข้อมูลการจองไม่สำเร็จ');
+    if (bookingQuery.error || categoryQuery.error) {
+      setPageError(
+        bookingQuery.error?.message || categoryQuery.error?.message || 'โหลดข้อมูลการจองไม่สำเร็จ'
+      );
       return;
     }
 
@@ -600,24 +654,29 @@ export function BookingView() {
 
     const data = bookingQuery.data;
     const normalizedBookings = data.bookings.map(normalizeBooking);
-    const firstServiceId = data.services[0]?.id ?? '';
-    const firstStaffId = data.staff[0]?.id ?? '';
+    const firstService = data.services[0];
     const firstDate = data.availability.find((day) => !day.isClosed && day.slots.length)?.date;
 
     setPageError(null);
     setServices(data.services);
-    setStaffMembers(data.staff);
     setAvailability(data.availability);
     setBookings(normalizedBookings);
     setBookingForm((current) => ({
       ...current,
-      serviceId: current.serviceId || firstServiceId,
-      staffId: current.staffId || firstStaffId,
+      serviceId: current.serviceId || firstService?.id || '',
+      categoryId: current.categoryId || firstService?.categoryId || drawerCategories[0]?.id || '',
       date: firstDate ?? current.date,
       customerName: current.customerName || data.profile.displayName || '',
       phone: current.phone || data.profile.phone || '',
     }));
-  }, [bookingQuery.data, bookingQuery.error, bookingQuery.isLoading]);
+  }, [
+    bookingQuery.data,
+    bookingQuery.error,
+    bookingQuery.isLoading,
+    categoryQuery.error,
+    categoryQuery.isLoading,
+    drawerCategories,
+  ]);
 
   const statusCounts = useMemo(
     () =>
@@ -639,7 +698,7 @@ export function BookingView() {
 
     return bookings.filter((booking) => {
       const matchStatus = statusFilter === 'all' || booking.status === statusFilter;
-      const matchService = serviceFilter === 'all' || booking.serviceId === serviceFilter;
+      const matchService = serviceFilter === 'all' || booking.categoryId === serviceFilter;
       const matchSearch =
         !normalizedQuery ||
         [
@@ -647,7 +706,6 @@ export function BookingView() {
           booking.service,
           booking.dateLabel,
           booking.time,
-          booking.staff,
           booking.note,
           booking.customerName,
           booking.phone,
@@ -670,13 +728,18 @@ export function BookingView() {
     setActiveStep(0);
     setDrawerError(null);
     const firstDate = availability.find((day) => !day.isClosed && day.slots.length)?.date ?? '';
+    const firstService = services[0];
     setBookingForm((current) => ({
-      ...getEmptyBookingForm(firstDate, services[0]?.id ?? '', staffMembers[0]?.id ?? ''),
+      ...getEmptyBookingForm(
+        firstDate,
+        firstService?.id ?? '',
+        firstService?.categoryId ?? drawerCategories[0]?.id ?? ''
+      ),
       customerName: current.customerName,
       phone: current.phone,
     }));
     bookingDrawer.onTrue();
-  }, [availability, bookingDrawer, services, staffMembers]);
+  }, [availability, bookingDrawer, drawerCategories, services]);
 
   const handleOpenReschedule = useCallback(
     (booking: BookingItem) => {
@@ -685,9 +748,9 @@ export function BookingView() {
       setDrawerError(null);
       setBookingForm({
         serviceId: booking.serviceId,
+        categoryId: booking.categoryId ?? '',
         date: booking.date,
         time: booking.time,
-        staffId: booking.staffId,
         customerName: booking.customerName,
         phone: booking.phone,
         customerNote: booking.customerNote,
@@ -699,13 +762,8 @@ export function BookingView() {
   );
 
   const validateStep = useCallback(() => {
-    if (activeStep === 0 && !bookingForm.serviceId) {
-      setDrawerError('ยังไม่มีบริการให้เลือก');
-      return false;
-    }
-
-    if (activeStep === 1 && !bookingForm.staffId) {
-      setDrawerError('ยังไม่มีพนักงานให้เลือก');
+    if (activeStep === 0 && !bookingForm.categoryId) {
+      setDrawerError('กรุณาเลือกประเภทงานทำความสะอาดสินค้า');
       return false;
     }
 
@@ -730,10 +788,9 @@ export function BookingView() {
     return true;
   }, [
     activeStep,
+    bookingForm.categoryId,
     bookingForm.customerName,
     bookingForm.phone,
-    bookingForm.serviceId,
-    bookingForm.staffId,
     bookingForm.time,
   ]);
 
@@ -756,7 +813,6 @@ export function BookingView() {
         booking.id !== editingBooking?.id &&
         booking.date === bookingForm.date &&
         booking.time === bookingForm.time &&
-        booking.staffId === bookingForm.staffId &&
         booking.status !== 'cancelled'
     );
 
@@ -768,7 +824,7 @@ export function BookingView() {
     try {
       const payload = {
         serviceId: bookingForm.serviceId,
-        staffId: bookingForm.staffId,
+        categoryId: bookingForm.categoryId,
         date: bookingForm.date,
         time: bookingForm.time,
         customerName: bookingForm.customerName,
@@ -795,7 +851,15 @@ export function BookingView() {
     } catch (error) {
       setDrawerError(error instanceof Error ? error.message : 'บันทึกนัดหมายไม่สำเร็จ');
     }
-  }, [bookingDrawer, bookingForm, bookings, createBooking, editingBooking, queryClient, updateBooking]);
+  }, [
+    bookingDrawer,
+    bookingForm,
+    bookings,
+    createBooking,
+    editingBooking,
+    queryClient,
+    updateBooking,
+  ]);
 
   const handleCancelBooking = useCallback(
     async (bookingId: string) => {
@@ -917,7 +981,8 @@ export function BookingView() {
                 นัดหมายของฉัน
               </Typography>
               <Typography sx={{ color: '#313936', maxWidth: 600, fontSize: 17, lineHeight: 1.8 }}>
-                จองคิวทำความสะอาดสินค้า เลือกวันเวลา ตรวจสอบคิวว่าง และจัดการนัดหมายได้ครบในหน้าเดียว
+                จองคิวทำความสะอาดสินค้า เลือกวันเวลา ตรวจสอบคิวว่าง
+                และจัดการนัดหมายได้ครบในหน้าเดียว
               </Typography>
             </Stack>
 
@@ -925,7 +990,7 @@ export function BookingView() {
               size="large"
               variant="contained"
               onClick={handleOpenCreate}
-              disabled={loadingBookingData || !services.length || !staffMembers.length}
+              disabled={loadingBookingData || !services.length || !drawerCategories.length}
               startIcon={<Iconify icon="solar:calendar-date-bold" />}
               sx={{ height: 52, borderRadius: 999, bgcolor: '#101513', px: 3 }}
             >
@@ -1023,7 +1088,7 @@ export function BookingView() {
               <TextField
                 fullWidth
                 value={searchQuery}
-                placeholder="ค้นหาบริการ วันที่ เวลา พนักงาน หรือเลขจอง"
+                placeholder="ค้นหาประเภท วันที่ เวลา หรือเลขจอง"
                 onChange={(event) => setSearchQuery(event.target.value)}
                 slotProps={{
                   input: {
@@ -1040,13 +1105,13 @@ export function BookingView() {
                 select
                 fullWidth
                 value={serviceFilter}
-                label="บริการ"
+                label="ประเภท"
                 onChange={(event) => setServiceFilter(event.target.value)}
               >
-                <MenuItem value="all">ทุกบริการ</MenuItem>
-                {services.map((service) => (
-                  <MenuItem key={service.id} value={service.id}>
-                    {service.name}
+                <MenuItem value="all">ทุกประเภท</MenuItem>
+                {drawerCategories.map((category) => (
+                  <MenuItem key={category.id} value={category.id}>
+                    {category.name}
                   </MenuItem>
                 ))}
               </TextField>
@@ -1056,7 +1121,7 @@ export function BookingView() {
               {filteredBookings.map((booking) => {
                 const meta = statusMeta[booking.status];
                 const canManage = ['pending', 'confirmed'].includes(booking.status);
-                const canOpenJob = canOpenBookingJob(booking);
+                const canOpenJob = canOpenBookingJob(booking, nowMs);
 
                 return (
                   <Box
@@ -1099,11 +1164,11 @@ export function BookingView() {
                             </Pill>
                           </Stack>
                           <Typography sx={{ mt: 0.5, color: '#64706b', fontSize: 14 }}>
-                            {booking.id} • {booking.dateLabel} เวลา {booking.time} • พนักงาน{' '}
-                            {booking.staff}
+                            {booking.id} • {booking.dateLabel} เวลา {booking.time}
                           </Typography>
                           <Typography sx={{ mt: 0.6, color: '#7a6a58', fontSize: 13 }}>
-                            {booking.duration} • {booking.price.toLocaleString()} บาท • {booking.note}
+                            {booking.duration} • {booking.price.toLocaleString()} บาท •{' '}
+                            {booking.note}
                           </Typography>
                         </Box>
                       </Stack>
@@ -1197,13 +1262,13 @@ export function BookingView() {
 
       <BookingDrawer
         open={bookingDrawer.value}
-      form={bookingForm}
-      activeStep={activeStep}
-      bookings={bookings}
-      services={services}
-      staffMembers={staffMembers}
-      editingBooking={editingBooking}
-      availableDates={availability}
+        form={bookingForm}
+        activeStep={activeStep}
+        bookings={bookings}
+        categories={drawerCategories}
+        services={services}
+        editingBooking={editingBooking}
+        availableDates={availability}
         errorMessage={drawerError}
         onClose={bookingDrawer.onFalse}
         onBack={handleBack}
@@ -1236,8 +1301,7 @@ export function BookingView() {
               >
                 <Typography sx={{ fontWeight: 900 }}>{openJobBooking.service}</Typography>
                 <Typography sx={{ mt: 0.5, color: '#64706b', fontSize: 14 }}>
-                  {openJobBooking.bookingNo} • {openJobBooking.dateLabel} เวลา{' '}
-                  {openJobBooking.time}
+                  {openJobBooking.bookingNo} • {openJobBooking.dateLabel} เวลา {openJobBooking.time}
                 </Typography>
               </Box>
               <TextField
@@ -1291,7 +1355,12 @@ export function BookingView() {
         </DialogActions>
       </Dialog>
 
-      <Dialog fullWidth maxWidth="xs" open={!!successBooking} onClose={() => setSuccessBooking(null)}>
+      <Dialog
+        fullWidth
+        maxWidth="xs"
+        open={!!successBooking}
+        onClose={() => setSuccessBooking(null)}
+      >
         <DialogTitle>จองคิวสำเร็จ</DialogTitle>
         <DialogContent>
           {successBooking && (
@@ -1301,7 +1370,6 @@ export function BookingView() {
               <Typography sx={{ color: '#64706b' }}>
                 {successBooking.id} • {successBooking.dateLabel} เวลา {successBooking.time}
               </Typography>
-              <Typography sx={{ color: '#64706b' }}>พนักงาน {successBooking.staff}</Typography>
             </Stack>
           )}
         </DialogContent>

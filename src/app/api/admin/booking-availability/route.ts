@@ -14,13 +14,19 @@ type AvailabilityBody = {
   isClosed?: boolean;
   openTime?: string;
   closeTime?: string;
-  slotIntervalMinutes?: number;
-  maxBookingsPerDay?: number;
+  slotIntervalMinutes?: number | null;
+  maxBookingsPerDay?: number | null;
   note?: string;
 };
 
 const availabilitySelect =
   'id, booking_date, is_closed, open_time, close_time, slot_interval_minutes, max_bookings_per_day, note, created_at, updated_at';
+
+function toMinutes(time: string) {
+  const [hours, minutes] = time.slice(0, 5).split(':').map(Number);
+
+  return hours * 60 + minutes;
+}
 
 function mapAvailability(day: any) {
   return {
@@ -34,6 +40,60 @@ function mapAvailability(day: any) {
     note: day.note,
     createdAt: day.created_at,
     updatedAt: day.updated_at,
+  };
+}
+
+function validateAvailabilityBody(body: AvailabilityBody) {
+  if (!body.date || !body.openTime || !body.closeTime) {
+    return 'Missing availability fields';
+  }
+
+  if (toMinutes(body.openTime) >= toMinutes(body.closeTime)) {
+    return 'เวลาเปิดรับต้องน้อยกว่าเวลาปิดรับ';
+  }
+
+  if (
+    body.slotIntervalMinutes !== undefined &&
+    body.slotIntervalMinutes !== null &&
+    (!Number.isInteger(body.slotIntervalMinutes) || body.slotIntervalMinutes <= 0)
+  ) {
+    return 'กรุณาระบุรอบเวลาเป็นจำนวนนาทีที่มากกว่า 0';
+  }
+
+  if (
+    body.maxBookingsPerDay !== undefined &&
+    body.maxBookingsPerDay !== null &&
+    (!Number.isInteger(body.maxBookingsPerDay) || body.maxBookingsPerDay < 0)
+  ) {
+    return 'กรุณาระบุจำนวนคิวต่อวันเป็นเลข 0 ขึ้นไป';
+  }
+
+  return null;
+}
+
+function toAvailabilityPayload(body: AvailabilityBody) {
+  return {
+    booking_date: body.date,
+    is_closed: body.isClosed ?? false,
+    open_time: body.openTime,
+    close_time: body.closeTime,
+    slot_interval_minutes: body.slotIntervalMinutes ?? null,
+    max_bookings_per_day: body.maxBookingsPerDay ?? null,
+    note: body.note?.trim() ?? '',
+  };
+}
+
+function mapAvailabilityError(error: { code?: string; message: string }) {
+  if (error.code === '23505') {
+    return {
+      status: 409,
+      message: 'วันที่นี้มีในตารางเปิดรับคิวแล้ว กรุณาแก้ไขรายการเดิม',
+    };
+  }
+
+  return {
+    status: 400,
+    message: error.message,
   };
 }
 
@@ -78,29 +138,22 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as AvailabilityBody;
+  const validationError = validateAvailabilityBody(body);
 
-  if (!body.date || !body.openTime || !body.closeTime) {
-    return NextResponse.json({ message: 'Missing availability fields' }, { status: 400 });
+  if (validationError) {
+    return NextResponse.json({ message: validationError }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin
     .from('spa_booking_availability')
-    .insert({
-      booking_date: body.date,
-      is_closed: body.isClosed ?? false,
-      open_time: body.openTime,
-      close_time: body.closeTime,
-      slot_interval_minutes: body.slotIntervalMinutes ?? 90,
-      max_bookings_per_day: body.maxBookingsPerDay ?? 6,
-      note: body.note?.trim() ?? '',
-    })
+    .upsert(toAvailabilityPayload(body), { onConflict: 'booking_date' })
     .select(availabilitySelect)
     .single();
 
   if (error) {
-    const status = error.code === '23505' ? 409 : 400;
+    const mappedError = mapAvailabilityError(error);
 
-    return NextResponse.json({ message: error.message }, { status });
+    return NextResponse.json({ message: mappedError.message }, { status: mappedError.status });
   }
 
   return NextResponse.json({ day: mapAvailability(data) });
@@ -114,30 +167,27 @@ export async function PATCH(request: Request) {
   }
 
   const body = (await request.json()) as AvailabilityBody;
+  const validationError = validateAvailabilityBody(body);
 
-  if (!body.id || !body.date || !body.openTime || !body.closeTime) {
+  if (!body.id) {
     return NextResponse.json({ message: 'Missing availability fields' }, { status: 400 });
+  }
+
+  if (validationError) {
+    return NextResponse.json({ message: validationError }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin
     .from('spa_booking_availability')
-    .update({
-      booking_date: body.date,
-      is_closed: body.isClosed ?? false,
-      open_time: body.openTime,
-      close_time: body.closeTime,
-      slot_interval_minutes: body.slotIntervalMinutes ?? 90,
-      max_bookings_per_day: body.maxBookingsPerDay ?? 6,
-      note: body.note?.trim() ?? '',
-    })
+    .update(toAvailabilityPayload(body))
     .eq('id', body.id)
     .select(availabilitySelect)
     .single();
 
   if (error) {
-    const status = error.code === '23505' ? 409 : 400;
+    const mappedError = mapAvailabilityError(error);
 
-    return NextResponse.json({ message: error.message }, { status });
+    return NextResponse.json({ message: mappedError.message }, { status: mappedError.status });
   }
 
   return NextResponse.json({ day: mapAvailability(data) });

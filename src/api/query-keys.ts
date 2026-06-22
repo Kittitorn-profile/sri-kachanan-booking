@@ -1,5 +1,6 @@
 export const queryKeys = {
   booking: ['booking'] as const,
+  spaCategories: ['spa-categories'] as const,
   admin: {
     users: (role?: string, status?: string) => ['admin', 'users', role ?? 'all', status ?? 'all'] as const,
     customers: (search?: string) => ['admin', 'customers', search ?? ''] as const,

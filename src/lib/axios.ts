@@ -78,10 +78,11 @@ export const endpoints = {
     users: '/api/admin/users',
     customers: '/api/admin/customers',
     spaBookings: '/api/admin/spa-bookings',
-    spaCategories: '/api/admin/spa-categories',
+    spaCategories: '/api/spa-categories',
     spaPromotions: '/api/admin/spa-promotions',
     bookingAvailability: '/api/admin/booking-availability',
   },
+  spaCategories: '/api/spa-categories',
   booking: '/api/booking',
   mail: {
     list: '/api/mail/list',

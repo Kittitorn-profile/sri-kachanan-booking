@@ -19,6 +19,7 @@ const bookingSelect = `
   id,
   booking_no,
   customer_id,
+  category_id,
   service_id,
   staff_id,
   booking_date,
@@ -36,6 +37,7 @@ const bookingSelect = `
   created_at,
   updated_at,
   user_profiles (email, display_name),
+  spa_service_categories (name),
   spa_services (name, duration_minutes, price),
   spa_staff (display_name)
 `;
@@ -53,7 +55,8 @@ function mapBooking(booking: any) {
     jobItems: booking.job_items ?? '',
     jobImageUrls: Array.isArray(booking.job_image_urls) ? booking.job_image_urls.slice(0, 4) : [],
     jobOpenedAt: booking.job_opened_at,
-    service: booking.spa_services?.name ?? '-',
+    service: booking.spa_service_categories?.name ?? booking.spa_services?.name ?? '-',
+    category: booking.spa_service_categories?.name ?? '-',
     duration: `${booking.spa_services?.duration_minutes ?? 0} นาที`,
     price: Number(booking.spa_services?.price ?? 0),
     staff: booking.spa_staff?.display_name ?? '-',

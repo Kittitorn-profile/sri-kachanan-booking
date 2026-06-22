@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -25,8 +25,8 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 
 import { endpoints } from 'src/lib/axios';
 import { queryKeys } from 'src/api/query-keys';
-import { useAuthedQuery, useAuthedMutation } from 'src/api/use-authed-query';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { useAuthedQuery, useAuthedMutation } from 'src/api/use-authed-query';
 
 import { Iconify } from 'src/components/iconify';
 

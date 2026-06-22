@@ -17,8 +17,8 @@ import TablePagination from '@mui/material/TablePagination';
 
 import { endpoints } from 'src/lib/axios';
 import { queryKeys } from 'src/api/query-keys';
-import { useAuthedQuery } from 'src/api/use-authed-query';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { useAuthedQuery } from 'src/api/use-authed-query';
 
 import { Iconify } from 'src/components/iconify';
 

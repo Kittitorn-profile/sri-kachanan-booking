@@ -11,7 +11,7 @@ type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'ca
 type BookingBody = {
   bookingId?: string;
   serviceId?: string;
-  staffId?: string;
+  categoryId?: string;
   date?: string;
   time?: string;
   customerName?: string;
@@ -33,13 +33,15 @@ type AvailabilityDay = {
   isClosed: boolean;
   openTime: string;
   closeTime: string;
-  slotIntervalMinutes: number;
-  maxBookingsPerDay: number;
+  slotIntervalMinutes: number | null;
+  maxBookingsPerDay: number | null;
   bookedCount: number;
-  remainingBookings: number;
+  remainingBookings: number | null;
   note: string;
   slots: string[];
 };
+
+const DEFAULT_SLOT_INTERVAL_MINUTES = 30;
 
 async function requireApprovedUser(request: Request) {
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
@@ -179,17 +181,33 @@ async function getAvailabilityDays(): Promise<AvailabilityDay[]> {
     const activeBookings = (bookings ?? []).filter((booking) => booking.booking_date === date);
     const bookedTimes = new Set(activeBookings.map((booking) => String(booking.booking_time).slice(0, 5)));
     const bookedCount = activeBookings.length;
-    const remainingBookings = Math.max(0, day.max_bookings_per_day - bookedCount);
+    const maxBookingsPerDay =
+      day.max_bookings_per_day === null ? null : Number(day.max_bookings_per_day);
+    const remainingBookings =
+      maxBookingsPerDay === null ? null : Math.max(0, maxBookingsPerDay - bookedCount);
+    const slotIntervalMinutes =
+      day.slot_interval_minutes === null ? null : Number(day.slot_interval_minutes);
+    const openTime = String(day.open_time).slice(0, 5);
+    const closeTime = String(day.close_time).slice(0, 5);
+    const openMinutes = toMinutes(openTime);
+    const closeMinutes = toMinutes(closeTime);
+    const isTodayOpenNow =
+      date === fromValue && bangkokNow.minutes >= openMinutes && bangkokNow.minutes < closeMinutes;
     const openSlots = createSlots(
-      String(day.open_time).slice(0, 5),
-      String(day.close_time).slice(0, 5),
-      day.slot_interval_minutes
+      openTime,
+      closeTime,
+      slotIntervalMinutes ?? DEFAULT_SLOT_INTERVAL_MINUTES
     );
+    const availableSlots = isTodayOpenNow
+      ? Array.from(new Set([toTimeValue(bangkokNow.minutes), ...openSlots])).sort(
+          (firstSlot, secondSlot) => toMinutes(firstSlot) - toMinutes(secondSlot)
+        )
+      : openSlots;
     const slots =
-      day.is_closed || remainingBookings <= 0
+      day.is_closed || remainingBookings === 0
         ? []
-        : openSlots.filter((slot) => {
-            const isPastTodaySlot = date === fromValue && toMinutes(slot) <= bangkokNow.minutes;
+        : availableSlots.filter((slot) => {
+            const isPastTodaySlot = date === fromValue && toMinutes(slot) < bangkokNow.minutes;
 
             return !isPastTodaySlot && !bookedTimes.has(slot);
           });
@@ -200,10 +218,10 @@ async function getAvailabilityDays(): Promise<AvailabilityDay[]> {
       label: formatShortDateLabel(date),
       fullLabel: formatDateLabel(date),
       isClosed: day.is_closed,
-      openTime: String(day.open_time).slice(0, 5),
-      closeTime: String(day.close_time).slice(0, 5),
-      slotIntervalMinutes: day.slot_interval_minutes,
-      maxBookingsPerDay: day.max_bookings_per_day,
+      openTime,
+      closeTime,
+      slotIntervalMinutes,
+      maxBookingsPerDay,
       bookedCount,
       remainingBookings,
       note: day.note,
@@ -228,14 +246,23 @@ async function validateAvailability(date: string, time: string, excludeBookingId
   }
 
   const normalizedTime = time.slice(0, 5);
-  const slots = createSlots(
-    String(day.open_time).slice(0, 5),
-    String(day.close_time).slice(0, 5),
-    day.slot_interval_minutes
-  );
+  const openTime = String(day.open_time).slice(0, 5);
+  const closeTime = String(day.close_time).slice(0, 5);
+  const bangkokNow = getBangkokDateTimeParts();
+  const slotIntervalMinutes =
+    day.slot_interval_minutes === null ? null : Number(day.slot_interval_minutes);
+  const isTodayBooking = date === bangkokNow.date;
 
-  if (!slots.includes(normalizedTime)) {
+  if (toMinutes(normalizedTime) < toMinutes(openTime) || toMinutes(normalizedTime) >= toMinutes(closeTime)) {
     return 'เวลานี้อยู่นอกช่วงเปิดรับคิว';
+  }
+
+  if (!isTodayBooking && slotIntervalMinutes !== null) {
+    const slots = createSlots(openTime, closeTime, slotIntervalMinutes);
+
+    if (!slots.includes(normalizedTime)) {
+      return 'เวลานี้อยู่นอกช่วงเปิดรับคิว';
+    }
   }
 
   let countQuery = supabaseAdmin
@@ -254,7 +281,7 @@ async function validateAvailability(date: string, time: string, excludeBookingId
     return countError.message;
   }
 
-  if ((count ?? 0) >= day.max_bookings_per_day) {
+  if (day.max_bookings_per_day !== null && (count ?? 0) >= day.max_bookings_per_day) {
     return 'วันนี้คิวเต็มแล้ว';
   }
 
@@ -266,34 +293,26 @@ function mapService(service: any) {
     id: service.id,
     name: service.name,
     categoryId: service.category_id,
-    category: service.spa_service_categories?.name ?? '',
     durationMinutes: service.duration_minutes,
     duration: `${service.duration_minutes} นาที`,
     price: Number(service.price),
   };
 }
 
-function mapStaff(staff: any) {
-  return {
-    id: staff.id,
-    name: staff.display_name,
-    specialty: staff.specialty,
-  };
-}
-
 function mapBooking(booking: any) {
+  const categoryName = booking.spa_service_categories?.name ?? booking.spa_services?.name ?? '';
+
   return {
     id: booking.id,
     bookingNo: booking.booking_no,
-    serviceId: booking.service_id,
-    service: booking.spa_services?.name ?? '',
+    serviceId: booking.service_id ?? '',
+    service: categoryName,
     duration: `${booking.spa_services?.duration_minutes ?? 0} นาที`,
     price: Number(booking.spa_services?.price ?? 0),
-    categoryId: booking.spa_services?.category_id ?? null,
-    category: booking.spa_services?.spa_service_categories?.name ?? '',
+    categoryId: booking.category_id ?? null,
     date: booking.booking_date,
     time: String(booking.booking_time).slice(0, 5),
-    staffId: booking.staff_id,
+    staffId: booking.staff_id ?? '',
     staff: booking.spa_staff?.display_name ?? '',
     customerName: booking.customer_name,
     phone: booking.phone,
@@ -371,6 +390,7 @@ async function upsertCompletedCustomer(bookingId: string, profile: any) {
 const bookingSelect = `
   id,
   booking_no,
+  category_id,
   service_id,
   staff_id,
   booking_date,
@@ -387,11 +407,10 @@ const bookingSelect = `
   review_comment,
   spa_services (
     name,
-    category_id,
     duration_minutes,
-    price,
-    spa_service_categories (name)
+    price
   ),
+  spa_service_categories (name),
   spa_staff (display_name)
 `;
 
@@ -402,17 +421,12 @@ export async function GET(request: Request) {
     return auth.response;
   }
 
-  const [servicesResult, staffResult, bookingsResult, availabilityResult] = await Promise.all([
+  const [servicesResult, bookingsResult, availabilityResult] = await Promise.all([
     supabaseAdmin
       .from('spa_services')
-      .select('id, name, category_id, duration_minutes, price, spa_service_categories (name)')
+      .select('id, name, category_id, duration_minutes, price')
       .eq('is_active', true)
       .order('name'),
-    supabaseAdmin
-      .from('spa_staff')
-      .select('id, display_name, specialty')
-      .eq('is_active', true)
-      .order('display_name'),
     supabaseAdmin
       .from('spa_bookings')
       .select(bookingSelect)
@@ -422,7 +436,7 @@ export async function GET(request: Request) {
     getAvailabilityDays(),
   ]);
 
-  const error = servicesResult.error || staffResult.error || bookingsResult.error;
+  const error = servicesResult.error || bookingsResult.error;
 
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 400 });
@@ -434,7 +448,6 @@ export async function GET(request: Request) {
       phone: auth.profile.phone,
     },
     services: (servicesResult.data ?? []).map(mapService),
-    staff: (staffResult.data ?? []).map(mapStaff),
     availability: availabilityResult,
     bookings: (bookingsResult.data ?? []).map(mapBooking),
   });
@@ -450,7 +463,7 @@ export async function POST(request: Request) {
   const body = (await request.json()) as BookingBody;
   const imageUrls = (body.imageUrls ?? []).filter(Boolean).slice(0, 4);
 
-  if (!body.serviceId || !body.staffId || !body.date || !body.time || !body.customerName || !body.phone) {
+  if (!body.categoryId || !body.date || !body.time || !body.customerName || !body.phone) {
     return NextResponse.json({ message: 'Missing booking fields' }, { status: 400 });
   }
 
@@ -465,8 +478,9 @@ export async function POST(request: Request) {
     .insert({
       booking_no: createBookingNo(),
       customer_id: auth.profile.id,
-      service_id: body.serviceId,
-      staff_id: body.staffId,
+      category_id: body.categoryId,
+      service_id: body.serviceId || null,
+      staff_id: null,
       booking_date: body.date,
       booking_time: body.time,
       customer_name: body.customerName.trim(),
@@ -529,12 +543,12 @@ export async function PATCH(request: Request) {
     }
   }
 
-  if (body.serviceId) {
-    patch.service_id = body.serviceId;
+  if (typeof body.serviceId === 'string') {
+    patch.service_id = body.serviceId || null;
   }
 
-  if (body.staffId) {
-    patch.staff_id = body.staffId;
+  if (body.categoryId) {
+    patch.category_id = body.categoryId;
   }
 
   if (body.date) {

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -25,8 +25,8 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 
 import { endpoints } from 'src/lib/axios';
 import { queryKeys } from 'src/api/query-keys';
-import { useAuthedQuery, useAuthedMutation } from 'src/api/use-authed-query';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { useAuthedQuery, useAuthedMutation } from 'src/api/use-authed-query';
 
 import { Iconify } from 'src/components/iconify';
 
@@ -40,20 +40,23 @@ type AvailabilityDay = {
   isClosed: boolean;
   openTime: string;
   closeTime: string;
-  slotIntervalMinutes: number;
-  maxBookingsPerDay: number;
+  slotIntervalMinutes: number | null;
+  maxBookingsPerDay: number | null;
   note: string;
 };
 
-type AvailabilityForm = Omit<AvailabilityDay, 'id'>;
+type AvailabilityForm = Omit<AvailabilityDay, 'id' | 'slotIntervalMinutes' | 'maxBookingsPerDay'> & {
+  slotIntervalMinutes: string;
+  maxBookingsPerDay: string;
+};
 
 const emptyAvailabilityForm: AvailabilityForm = {
   date: '',
   isClosed: false,
   openTime: '10:00',
   closeTime: '18:00',
-  slotIntervalMinutes: 90,
-  maxBookingsPerDay: 6,
+  slotIntervalMinutes: '',
+  maxBookingsPerDay: '',
   note: '',
 };
 
@@ -65,6 +68,24 @@ function formatDate(dateValue: string) {
     month: 'short',
     year: 'numeric',
   }).format(new Date(`${dateValue}T00:00:00`));
+}
+
+function toMinutes(time: string) {
+  const [hours, minutes] = time.split(':').map(Number);
+
+  return hours * 60 + minutes;
+}
+
+function parseOptionalInteger(value: string) {
+  if (!value.trim()) {
+    return null;
+  }
+
+  return Number(value);
+}
+
+function formatOptionalValue(value: number | null, suffix: string) {
+  return value === null ? 'ไม่จำกัด' : `${value} ${suffix}`;
 }
 
 export function AdminAvailabilityView() {
@@ -88,7 +109,7 @@ export function AdminAvailabilityView() {
   });
   const saveAvailability = useAuthedMutation<
     { day: AvailabilityDay },
-    { id?: string } & AvailabilityForm
+    Omit<AvailabilityDay, 'id'> & { id?: string }
   >({
     method: editingDay ? 'patch' : 'post',
     url: endpoints.admin.bookingAvailability,
@@ -124,8 +145,8 @@ export function AdminAvailabilityView() {
       formatDate(day.date),
       day.openTime,
       day.closeTime,
-      `${day.slotIntervalMinutes} นาที`,
-      `${day.maxBookingsPerDay} คิว`,
+      formatOptionalValue(day.slotIntervalMinutes, 'นาที'),
+      formatOptionalValue(day.maxBookingsPerDay, 'คิว'),
       day.isClosed ? 'ปิดรับคิว' : 'เปิดรับคิว',
       day.note,
     ]
@@ -157,8 +178,8 @@ export function AdminAvailabilityView() {
       isClosed: day.isClosed,
       openTime: day.openTime,
       closeTime: day.closeTime,
-      slotIntervalMinutes: day.slotIntervalMinutes,
-      maxBookingsPerDay: day.maxBookingsPerDay,
+      slotIntervalMinutes: day.slotIntervalMinutes === null ? '' : String(day.slotIntervalMinutes),
+      maxBookingsPerDay: day.maxBookingsPerDay === null ? '' : String(day.maxBookingsPerDay),
       note: day.note,
     });
     setIsDialogOpen(true);
@@ -176,14 +197,38 @@ export function AdminAvailabilityView() {
       return;
     }
 
+    if (toMinutes(availabilityForm.openTime) >= toMinutes(availabilityForm.closeTime)) {
+      setErrorMessage('เวลาเปิดรับต้องน้อยกว่าเวลาปิดรับ');
+      return;
+    }
+
+    const slotIntervalMinutes = parseOptionalInteger(availabilityForm.slotIntervalMinutes);
+    const maxBookingsPerDay = parseOptionalInteger(availabilityForm.maxBookingsPerDay);
+
+    if (
+      slotIntervalMinutes !== null &&
+      (!Number.isInteger(slotIntervalMinutes) || slotIntervalMinutes <= 0)
+    ) {
+      setErrorMessage('กรุณาระบุรอบเวลาเป็นจำนวนนาทีที่มากกว่า 0');
+      return;
+    }
+
+    if (
+      maxBookingsPerDay !== null &&
+      (!Number.isInteger(maxBookingsPerDay) || maxBookingsPerDay < 0)
+    ) {
+      setErrorMessage('กรุณาระบุจำนวนคิวต่อวันเป็นเลข 0 ขึ้นไป');
+      return;
+    }
+
     saveAvailability.mutate({
       id: editingDay?.id,
       date: availabilityForm.date,
       isClosed: availabilityForm.isClosed,
       openTime: availabilityForm.openTime,
       closeTime: availabilityForm.closeTime,
-      slotIntervalMinutes: Number(availabilityForm.slotIntervalMinutes),
-      maxBookingsPerDay: Number(availabilityForm.maxBookingsPerDay),
+      slotIntervalMinutes,
+      maxBookingsPerDay,
       note: availabilityForm.note,
     });
   }, [availabilityForm, editingDay, saveAvailability]);
@@ -276,8 +321,12 @@ export function AdminAvailabilityView() {
                 <Typography sx={{ fontWeight: 800 }}>{formatDate(day.date)}</Typography>
                 <Typography variant="body2">{day.openTime}</Typography>
                 <Typography variant="body2">{day.closeTime}</Typography>
-                <Typography variant="body2">{day.slotIntervalMinutes} นาที</Typography>
-                <Typography variant="body2">{day.maxBookingsPerDay} คิว</Typography>
+                <Typography variant="body2">
+                  {formatOptionalValue(day.slotIntervalMinutes, 'นาที')}
+                </Typography>
+                <Typography variant="body2">
+                  {formatOptionalValue(day.maxBookingsPerDay, 'คิว')}
+                </Typography>
                 <Box>
                   <Chip
                     size="small"
@@ -387,9 +436,11 @@ export function AdminAvailabilityView() {
                 onChange={(event) =>
                   setAvailabilityForm((current) => ({
                     ...current,
-                    slotIntervalMinutes: Number(event.target.value),
+                    slotIntervalMinutes: event.target.value,
                   }))
                 }
+                helperText="เว้นว่างได้"
+                slotProps={{ htmlInput: { min: 1, step: 1 } }}
               />
               <TextField
                 fullWidth
@@ -399,9 +450,11 @@ export function AdminAvailabilityView() {
                 onChange={(event) =>
                   setAvailabilityForm((current) => ({
                     ...current,
-                    maxBookingsPerDay: Number(event.target.value),
+                    maxBookingsPerDay: event.target.value,
                   }))
                 }
+                helperText="เว้นว่าง = ไม่จำกัด"
+                slotProps={{ htmlInput: { min: 0, step: 1 } }}
               />
             </Stack>
             <TextField
