@@ -15,7 +15,7 @@ export const adminNavData: NavSectionProps['data'] = [
       {
         title: 'แดชบอร์ด',
         path: paths.admin.root,
-        allowedRoles: ['admin', 'employee'],
+        allowedRoles: ['admin', 'dashboard'],
         icon: <Iconify icon="solar:home-angle-bold-duotone" />,
       },
     ],
@@ -26,17 +26,19 @@ export const adminNavData: NavSectionProps['data'] = [
       {
         title: 'จัดการผู้ใช้งาน',
         path: paths.admin.users,
-        allowedRoles: ['admin'],
+        allowedRoles: ['admin', 'registrationRequests', 'customers'],
         icon: <Iconify icon="solar:user-rounded-bold" />,
         children: [
           {
             title: 'คำขอสมัครสมาชิก',
             path: paths.admin.registrationRequests,
+            allowedRoles: ['admin', 'registrationRequests'],
             info: <RegistrationRequestsBadge />,
           },
           {
             title: 'ลูกค้า',
             path: paths.admin.customers,
+            allowedRoles: ['admin', 'customers'],
           },
         ],
       },
@@ -48,7 +50,7 @@ export const adminNavData: NavSectionProps['data'] = [
       {
         title: 'บริการสปา',
         path: paths.admin.services,
-        allowedRoles: ['admin', 'employee'],
+        allowedRoles: ['admin', 'services'],
         icon: <Iconify icon="solar:tea-cup-bold" />,
         children: [
           {
@@ -64,19 +66,19 @@ export const adminNavData: NavSectionProps['data'] = [
       {
         title: 'พนักงาน',
         path: paths.admin.staff,
-        allowedRoles: ['admin'],
+        allowedRoles: ['admin', 'staff'],
         icon: <Iconify icon="solar:users-group-rounded-bold-duotone" />,
       },
       {
         title: 'วันเวลาเปิดรับคิว',
         path: paths.admin.availability,
-        allowedRoles: ['admin'],
+        allowedRoles: ['admin', 'availability'],
         icon: <Iconify icon="solar:calendar-date-bold" />,
       },
       {
         title: 'โปรโมชั่น / คูปอง',
         path: paths.admin.promotions,
-        allowedRoles: ['admin'],
+        allowedRoles: ['admin', 'promotions'],
         icon: <Iconify icon="solar:tag-horizontal-bold-duotone" />,
       },
     ],
@@ -85,9 +87,9 @@ export const adminNavData: NavSectionProps['data'] = [
     subheader: 'ข้อมูลหลัก',
     items: [
       {
-        title: 'หมวดหมู่บริการ',
+        title: 'งานบริการ',
         path: paths.master.category,
-        allowedRoles: ['admin'],
+        allowedRoles: ['admin', 'categories'],
         icon: <Iconify icon="solar:file-bold-duotone" />,
       },
     ],
@@ -98,7 +100,7 @@ export const adminNavData: NavSectionProps['data'] = [
       {
         title: 'รายงานรายได้',
         path: paths.admin.revenue,
-        allowedRoles: ['admin'],
+        allowedRoles: ['admin', 'revenue'],
         icon: <Iconify icon="solar:chart-square-outline" />,
       },
     ],

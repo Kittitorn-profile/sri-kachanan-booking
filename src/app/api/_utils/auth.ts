@@ -6,11 +6,16 @@ import { supabaseAdmin } from 'src/lib/supabase-admin';
 
 // ----------------------------------------------------------------------
 
+const backOfficeRoles = ['admin', 'employee'];
+
 export type ApiAuthResult =
   | { user: User; response?: never }
   | { user?: never; response: NextResponse };
 
-export async function requireAdmin(request: Request): Promise<ApiAuthResult> {
+export async function requireAdmin(
+  request: Request,
+  permission?: string
+): Promise<ApiAuthResult> {
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
 
   if (!token) {
@@ -29,20 +34,33 @@ export async function requireAdmin(request: Request): Promise<ApiAuthResult> {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('user_profiles')
-    .select('role')
+    .select('role, admin_permissions')
     .eq('id', data.user.id)
     .single();
 
-  if (profileError || profile?.role !== 'admin') {
+  if (profileError || !backOfficeRoles.includes(profile?.role)) {
     return {
       response: NextResponse.json({ message: 'Admin permission required' }, { status: 403 }),
+    };
+  }
+
+  if (
+    profile.role === 'employee' &&
+    permission &&
+    !(profile.admin_permissions ?? []).includes(permission)
+  ) {
+    return {
+      response: NextResponse.json({ message: 'Menu permission required' }, { status: 403 }),
     };
   }
 
   return { user: data.user };
 }
 
-export async function requireBackOffice(request: Request): Promise<ApiAuthResult> {
+export async function requireBackOffice(
+  request: Request,
+  permission?: string
+): Promise<ApiAuthResult> {
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
 
   if (!token) {
@@ -61,13 +79,23 @@ export async function requireBackOffice(request: Request): Promise<ApiAuthResult
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('user_profiles')
-    .select('role')
+    .select('role, admin_permissions')
     .eq('id', data.user.id)
     .single();
 
   if (profileError || !['admin', 'employee'].includes(profile?.role)) {
     return {
       response: NextResponse.json({ message: 'Back office permission required' }, { status: 403 }),
+    };
+  }
+
+  if (
+    profile.role === 'employee' &&
+    permission &&
+    !(profile.admin_permissions ?? []).includes(permission)
+  ) {
+    return {
+      response: NextResponse.json({ message: 'Menu permission required' }, { status: 403 }),
     };
   }
 

@@ -17,6 +17,7 @@ import { Label } from 'src/components/label';
 import { CustomPopover } from 'src/components/custom-popover';
 
 import { useAuthContext } from 'src/auth/hooks';
+import { isBackOfficeRole } from 'src/auth/utils';
 
 import { AccountButton } from './account-button';
 import { SignOutButton } from './sign-out-button';
@@ -38,7 +39,7 @@ export function AccountPopover({ data, sx, ...other }: AccountPopoverProps) {
   const { open, anchorEl, onClose, onOpen } = usePopover();
 
   const { user } = useAuthContext();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isBackOfficeRole(user?.role);
 
   const menuData: NonNullable<AccountPopoverProps['data']> =
     data ??

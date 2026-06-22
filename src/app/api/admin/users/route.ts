@@ -14,6 +14,7 @@ type AppRole = 'admin' | 'employee' | 'user';
 type UpdateUserBody = {
   userId?: string;
   approvalStatus?: ApprovalStatus;
+  adminPermissions?: string[];
 };
 
 type CreateUserBody = {
@@ -23,23 +24,43 @@ type CreateUserBody = {
   phone?: string;
   role?: AppRole;
   approvalStatus?: ApprovalStatus;
+  adminPermissions?: string[];
 };
 
+const adminPermissionValues = [
+  'dashboard',
+  'registrationRequests',
+  'customers',
+  'services',
+  'staff',
+  'availability',
+  'promotions',
+  'categories',
+  'revenue',
+];
+
+function normalizeAdminPermissions(permissions: string[] | undefined) {
+  return Array.from(
+    new Set(
+      (permissions ?? ['dashboard']).filter((permission) => adminPermissionValues.includes(permission))
+    )
+  );
+}
+
 export async function GET(request: Request) {
-  const auth = await requireAdmin(request);
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get('status');
+  const role = searchParams.get('role');
+  const auth = await requireAdmin(request, role === 'user' ? 'registrationRequests' : 'staff');
 
   if (auth.response) {
     return auth.response;
   }
 
-  const { searchParams } = new URL(request.url);
-  const status = searchParams.get('status');
-  const role = searchParams.get('role');
-
   let query = supabaseAdmin
     .from('user_profiles')
     .select(
-      'id, email, phone, display_name, role, approval_status, requested_at, approved_at, rejected_at, created_at, updated_at'
+      'id, email, phone, display_name, role, approval_status, admin_permissions, requested_at, approved_at, rejected_at, created_at, updated_at'
     )
     .order('requested_at', { ascending: false });
 
@@ -63,6 +84,7 @@ export async function GET(request: Request) {
     phone: user.phone,
     role: user.role,
     displayName: user.display_name,
+    adminPermissions: user.admin_permissions ?? [],
     approvalStatus: user.approval_status,
     requestedAt: user.requested_at,
     approvedAt: user.approved_at,
@@ -78,7 +100,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, 'staff');
 
   if (auth.response) {
     return auth.response;
@@ -92,6 +114,7 @@ export async function POST(request: Request) {
   const phone = body.phone?.trim() || null;
   const role = body.role ?? 'employee';
   const approvalStatus = body.approvalStatus ?? 'approved';
+  const adminPermissions = normalizeAdminPermissions(body.adminPermissions);
   const requestedAt = new Date().toISOString();
 
   if (!email || !password || !displayName) {
@@ -122,6 +145,7 @@ export async function POST(request: Request) {
       account_source: 'admin',
       role,
       approval_status: approvalStatus,
+      admin_permissions: adminPermissions,
       display_name: displayName,
       phone,
       requested_at: requestedAt,
@@ -145,12 +169,13 @@ export async function POST(request: Request) {
       display_name: displayName,
       role,
       approval_status: approvalStatus,
+      admin_permissions: adminPermissions,
       requested_at: requestedAt,
       approved_at: approvalStatus === 'approved' ? requestedAt : null,
       rejected_at: approvalStatus === 'rejected' ? requestedAt : null,
     })
     .select(
-      'id, email, phone, display_name, role, approval_status, requested_at, approved_at, rejected_at, created_at, updated_at'
+      'id, email, phone, display_name, role, approval_status, admin_permissions, requested_at, approved_at, rejected_at, created_at, updated_at'
     )
     .single();
 
@@ -167,6 +192,7 @@ export async function POST(request: Request) {
       phone: profile.phone,
       role: profile.role,
       displayName: profile.display_name,
+      adminPermissions: profile.admin_permissions ?? [],
       approvalStatus: profile.approval_status,
       requestedAt: profile.requested_at,
       approvedAt: profile.approved_at,
@@ -178,38 +204,59 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireAdmin(request);
+  const body = (await request.json()) as UpdateUserBody;
+
+  if (!body.userId || (!body.approvalStatus && !body.adminPermissions)) {
+    return NextResponse.json({ message: 'Missing userId, approvalStatus, or adminPermissions' }, { status: 400 });
+  }
+
+  const { data: targetUser, error: targetUserError } = await supabaseAdmin
+    .from('user_profiles')
+    .select('role')
+    .eq('id', body.userId)
+    .single();
+
+  if (targetUserError) {
+    return NextResponse.json({ message: targetUserError.message }, { status: 400 });
+  }
+
+  const auth = await requireAdmin(
+    request,
+    targetUser.role === 'user' ? 'registrationRequests' : 'staff'
+  );
 
   if (auth.response) {
     return auth.response;
   }
 
-  const body = (await request.json()) as UpdateUserBody;
-
-  if (!body.userId || !body.approvalStatus) {
-    return NextResponse.json({ message: 'Missing userId or approvalStatus' }, { status: 400 });
-  }
-
-  if (!['pending', 'approved', 'rejected'].includes(body.approvalStatus)) {
+  if (body.approvalStatus && !['pending', 'approved', 'rejected'].includes(body.approvalStatus)) {
     return NextResponse.json({ message: 'Invalid approvalStatus' }, { status: 400 });
   }
 
-  const timestampKey =
-    body.approvalStatus === 'approved'
-      ? 'approved_at'
-      : body.approvalStatus === 'rejected'
-        ? 'rejected_at'
-        : 'requested_at';
+  const patch: Record<string, unknown> = {};
+
+  if (body.approvalStatus) {
+    const timestampKey =
+      body.approvalStatus === 'approved'
+        ? 'approved_at'
+        : body.approvalStatus === 'rejected'
+          ? 'rejected_at'
+          : 'requested_at';
+
+    patch.approval_status = body.approvalStatus;
+    patch[timestampKey] = new Date().toISOString();
+  }
+
+  if (body.adminPermissions) {
+    patch.admin_permissions = normalizeAdminPermissions(body.adminPermissions);
+  }
 
   const { data, error } = await supabaseAdmin
     .from('user_profiles')
-    .update({
-      approval_status: body.approvalStatus,
-      [timestampKey]: new Date().toISOString(),
-    })
+    .update(patch)
     .eq('id', body.userId)
     .select(
-      'id, email, phone, display_name, role, approval_status, requested_at, approved_at, rejected_at, created_at, updated_at'
+      'id, email, phone, display_name, role, approval_status, admin_permissions, requested_at, approved_at, rejected_at, created_at, updated_at'
     )
     .single();
 
@@ -221,6 +268,7 @@ export async function PATCH(request: Request) {
     user_metadata: {
       role: data.role,
       approval_status: data.approval_status,
+      admin_permissions: data.admin_permissions ?? [],
       display_name: data.display_name,
       requested_at: data.requested_at,
       approved_at: data.approved_at,
@@ -235,6 +283,7 @@ export async function PATCH(request: Request) {
       phone: data.phone,
       role: data.role,
       displayName: data.display_name,
+      adminPermissions: data.admin_permissions ?? [],
       approvalStatus: data.approval_status,
       requestedAt: data.requested_at,
       approvedAt: data.approved_at,

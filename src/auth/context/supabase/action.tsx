@@ -47,6 +47,7 @@ export type UpdatePasswordParams = {
 type UserProfileAuth = {
   role: 'admin' | 'employee' | 'user';
   approval_status: 'pending' | 'approved' | 'rejected';
+  admin_permissions: string[];
 };
 
 type SignInResponse = AuthTokenResponsePassword & {

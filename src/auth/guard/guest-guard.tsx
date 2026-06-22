@@ -10,6 +10,7 @@ import { CONFIG } from 'src/global-config';
 import { SplashScreen } from 'src/components/loading-screen';
 
 import { useAuthContext } from '../hooks';
+import { getAdminPermissions, getFirstAdminPath, isBackOfficeRole } from '../utils';
 
 // ----------------------------------------------------------------------
 
@@ -32,7 +33,9 @@ export function GuestGuard({ children }: GuestGuardProps) {
 
   const searchParams = useSearchParams();
   const redirectUrl =
-    user?.role === 'admin' ? '/admin' : getUserRedirectUrl(searchParams.get('returnTo'));
+    isBackOfficeRole(user?.role)
+      ? getFirstAdminPath(getAdminPermissions(user?.role, user?.adminPermissions))
+      : getUserRedirectUrl(searchParams.get('returnTo'));
 
   const checkPermissions = async (): Promise<void> => {
     if (loading) {

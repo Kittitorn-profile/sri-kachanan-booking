@@ -68,10 +68,12 @@ export const adminStaff: AdminStaffMember[] = [
 export const adminMenuPermissions = [
   { value: 'dashboard', label: 'แดชบอร์ด' },
   { value: 'registrationRequests', label: 'คำขอสมัครสมาชิก' },
+  { value: 'customers', label: 'ลูกค้า' },
   { value: 'services', label: 'บริการสปา' },
   { value: 'staff', label: 'พนักงาน' },
-  { value: 'customers', label: 'ลูกค้า' },
+  { value: 'availability', label: 'วันเวลาเปิดรับคิว' },
   { value: 'promotions', label: 'โปรโมชั่น / คูปอง' },
+  { value: 'categories', label: 'งานบริการ' },
   { value: 'revenue', label: 'รายงานรายได้' },
 ];
 

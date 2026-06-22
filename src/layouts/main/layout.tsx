@@ -17,6 +17,7 @@ import { Logo } from 'src/components/logo';
 import { SplashScreen } from 'src/components/loading-screen';
 
 import { useAuthContext } from 'src/auth/hooks';
+import { getAdminPermissions, getFirstAdminPath, isBackOfficeRole } from 'src/auth/utils';
 
 import { NavMobile } from './nav/mobile';
 import { NavDesktop } from './nav/desktop';
@@ -57,21 +58,21 @@ export function MainLayout({
   const { authenticated, loading, user } = useAuthContext();
 
   const isHomePage = pathname === '/';
-  const shouldRedirectAdmin = authenticated && user?.role === 'admin';
+  const shouldRedirectAdmin = authenticated && isBackOfficeRole(user?.role);
 
   useEffect(() => {
     if (shouldRedirectAdmin) {
-      router.replace('/admin');
+      router.replace(getFirstAdminPath(getAdminPermissions(user?.role, user?.adminPermissions)));
     }
   }, [router, shouldRedirectAdmin]);
 
   const navData = (slotProps?.nav?.data ?? mainNavData).filter((item) => {
     if (item.path === '/admin') {
-      return user?.role === 'admin';
+      return isBackOfficeRole(user?.role);
     }
 
     if (item.path === '/booking') {
-      return user?.role !== 'admin';
+      return !isBackOfficeRole(user?.role);
     }
 
     return true;

@@ -6,18 +6,20 @@ export type SpaCategoryRow = {
   id: string;
   name: string;
   description: string;
+  price: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 };
 
-export const categorySelect = 'id, name, description, is_active, created_at, updated_at';
+export const categorySelect = 'id, name, description, price, is_active, created_at, updated_at';
 
 export function mapCategory(category: SpaCategoryRow) {
   return {
     id: category.id,
     name: category.name,
     description: category.description,
+    price: category.price === null ? null : Number(category.price),
     isActive: category.is_active,
     createdAt: category.created_at,
     updatedAt: category.updated_at,

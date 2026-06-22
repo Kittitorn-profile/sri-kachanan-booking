@@ -2,53 +2,45 @@
 
 import type React from 'react';
 
+import { useState, useEffect } from 'react';
+
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 
+import axios, { endpoints } from 'src/lib/axios';
+
 import { Image } from 'src/components/image';
 import { Iconify } from 'src/components/iconify';
 
 // ----------------------------------------------------------------------
 
-const services = [
-  {
-    title: 'นวดน้ำมันคชานัน',
-    duration: '90 นาที',
-    price: '2,400',
-    tag: 'แนะนำ',
-    body: 'นวดน้ำมันทั่วร่างกายพร้อมจังหวะหายใจ ช่วยคลายออฟฟิศซินโดรมและเติมความสงบ',
-    image: '/assets/spa/aroma-oil.png',
-  },
-  {
-    title: 'พิธีผิวใสสมุนไพร',
-    duration: '75 นาที',
-    price: '1,900',
-    tag: 'ขายดี',
-    body: 'สครับ สมุนไพรอุ่น และมาสก์ดอกบัว เหมาะกับผู้ต้องการฟื้นผิวก่อนวันสำคัญ',
-    image: '/assets/spa/facial-ritual.png',
-  },
-  {
-    title: 'แช่เท้าดอกบัวและประคบ',
-    duration: '60 นาที',
-    price: '1,500',
-    tag: 'ผ่อนคลาย',
-    body: 'แช่เท้าในน้ำสมุนไพร ตามด้วยประคบอุ่นและนวดกดจุดเบา ๆ เพื่อลดความล้า',
-    image: '/assets/spa/herbal-soak.png',
-  },
-];
-
-function SectionTitle({
-  eyebrow,
-  title,
-  body,
-}: {
-  eyebrow: string;
+type HomeService = {
+  id: string;
   title: string;
-  body?: string;
-}) {
+  price: number | null;
+  tag: string;
+  body: string;
+  image: string;
+};
+
+type HomePromotion = {
+  id: string;
+  title: string;
+  code: string;
+  description: string;
+  discountLabel: string;
+};
+
+type HomeResponse = {
+  services: HomeService[];
+  promotions: HomePromotion[];
+  heroPromotion: HomePromotion | null;
+};
+
+function SectionTitle({ eyebrow, title, body }: { eyebrow: string; title: string; body?: string }) {
   return (
     <Stack spacing={1.2} sx={{ mb: { xs: 3.5, md: 5 }, maxWidth: 720 }}>
       <Typography sx={{ color: '#8a5b26', fontSize: 13, fontWeight: 900 }}>{eyebrow}</Typography>
@@ -64,9 +56,7 @@ function SectionTitle({
       >
         {title}
       </Typography>
-      {body && (
-        <Typography sx={{ color: '#64706b', lineHeight: 1.8 }}>{body}</Typography>
-      )}
+      {body && <Typography sx={{ color: '#64706b', lineHeight: 1.8 }}>{body}</Typography>}
     </Stack>
   );
 }
@@ -91,6 +81,36 @@ function Pill({ children }: { children: React.ReactNode }) {
 }
 
 export function HomeView() {
+  const [homeData, setHomeData] = useState<HomeResponse | null>(null);
+  const [homeError, setHomeError] = useState<string | null>(null);
+  const services = homeData?.services ?? [];
+  const heroPromotion =
+    homeData?.heroPromotion?.discountLabel ||
+    homeData?.heroPromotion?.title ||
+    'จองคิวออนไลน์ได้แล้ววันนี้';
+
+  useEffect(() => {
+    let mounted = true;
+
+    axios
+      .get<HomeResponse>(endpoints.home)
+      .then((response) => {
+        if (mounted) {
+          setHomeData(response.data);
+          setHomeError(null);
+        }
+      })
+      .catch((error) => {
+        if (mounted) {
+          setHomeError(error instanceof Error ? error.message : 'โหลดข้อมูลหน้าแรกไม่สำเร็จ');
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <Box
       component="main"
@@ -165,7 +185,7 @@ export function HomeView() {
           }}
         >
           <Stack spacing={2.5} sx={{ maxWidth: 650 }}>
-            <Pill>โปรโมชั่นเปิดระบบจองออนไลน์ ลด 20% ถึงสิ้นเดือน</Pill>
+            <Pill>{heroPromotion}</Pill>
             <Typography
               component="h1"
               sx={{
@@ -191,8 +211,7 @@ export function HomeView() {
               คายะตรีมันตรา
             </Typography>
             <Typography sx={{ color: '#313936', maxWidth: 520, fontSize: 17, lineHeight: 1.8 }}>
-              UI ระบบจองสปาครบเส้นทาง ตั้งแต่เลือกบริการ เลือกวันเวลา จองคิว ดูประวัติ เลื่อนนัด
-              รีวิว ไปจนถึงแดชบอร์ดหลังบ้านสำหรับทีมงาน
+              เลือกงานบริการ ดูราคา เลือกวันเวลา และติดตามสถานะงานทำความสะอาดสินค้าได้ในระบบเดียว
             </Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
               <Button
@@ -229,16 +248,18 @@ export function HomeView() {
       >
         <Container maxWidth="lg">
           <SectionTitle
-            eyebrow="บริการสปา"
-            title="รายการบริการและรายละเอียดสำหรับลูกค้า"
-            body="ออกแบบเป็นการ์ดที่อ่านง่ายบนมือถือ มีราคา ระยะเวลา ป้ายโปรโมชัน และปุ่มเข้าสู่การจอง"
+            eyebrow="งานบริการ"
+            title="รายการงานบริการและรายละเอียดสำหรับลูกค้า"
+            body="ข้อมูลส่วนนี้ดึงจากระบบหลังบ้านโดยตรง ทั้งชื่องานบริการ ราคา และรายละเอียด"
           />
+
+          {homeError && <Box sx={{ mb: 3, color: '#9b2f2f', fontWeight: 800 }}>{homeError}</Box>}
 
           <Box
             sx={{
               display: 'grid',
               gap: 2.5,
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(4, minmax(0, 1fr))' },
             }}
           >
             {services.map((service) => (
@@ -255,17 +276,17 @@ export function HomeView() {
                 <Image alt={service.title} src={service.image} ratio="4/3" />
                 <Stack spacing={1.4} sx={{ p: 2.5 }}>
                   <Stack direction="row" alignItems="center" justifyContent="space-between">
-                    <Pill>{service.tag}</Pill>
-                    <Typography sx={{ color: '#8a7b68', fontSize: 13 }}>
-                      {service.duration}
-                    </Typography>
+                    {/* <Pill>{service.tag}</Pill> */}
+                    <Typography sx={{ color: '#8a7b68', fontSize: 13 }}>งานบริการ</Typography>
                   </Stack>
                   <Typography sx={{ fontSize: 20, fontWeight: 950 }}>{service.title}</Typography>
                   <Typography sx={{ color: '#68736e', minHeight: 74, lineHeight: 1.7 }}>
-                    {service.body}
+                    {service.body || 'ดูรายละเอียดเพิ่มเติมและเลือกวันเวลาได้ในหน้าจองคิว'}
                   </Typography>
                   <Stack direction="row" alignItems="center" justifyContent="space-between">
-                    <Typography sx={{ fontSize: 24, fontWeight: 900 }}>฿{service.price}</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                      {service.price === null ? 'สอบถามราคา' : `฿${service.price.toLocaleString()}`}
+                    </Typography>
                     <Button href="/booking" variant="contained" sx={{ borderRadius: 999 }}>
                       เลือกบริการ
                     </Button>
@@ -273,6 +294,9 @@ export function HomeView() {
                 </Stack>
               </Box>
             ))}
+            {!services.length && !homeError && (
+              <Typography sx={{ color: '#68736e' }}>กำลังโหลดงานบริการ...</Typography>
+            )}
           </Box>
         </Container>
       </Box>

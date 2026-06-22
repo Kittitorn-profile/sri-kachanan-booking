@@ -301,6 +301,7 @@ function mapService(service: any) {
 
 function mapBooking(booking: any) {
   const categoryName = booking.spa_service_categories?.name ?? booking.spa_services?.name ?? '';
+  const categoryPrice = booking.spa_service_categories?.price;
 
   return {
     id: booking.id,
@@ -308,7 +309,7 @@ function mapBooking(booking: any) {
     serviceId: booking.service_id ?? '',
     service: categoryName,
     duration: `${booking.spa_services?.duration_minutes ?? 0} นาที`,
-    price: Number(booking.spa_services?.price ?? 0),
+    price: Number(categoryPrice ?? booking.spa_services?.price ?? 0),
     categoryId: booking.category_id ?? null,
     date: booking.booking_date,
     time: String(booking.booking_time).slice(0, 5),
@@ -410,7 +411,7 @@ const bookingSelect = `
     duration_minutes,
     price
   ),
-  spa_service_categories (name),
+  spa_service_categories (name, price),
   spa_staff (display_name)
 `;
 

@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 
 import { useState, useEffect } from 'react';
+import { usePopover } from 'minimal-shared/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 
 import Box from '@mui/material/Box';
@@ -15,6 +16,7 @@ import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
+import MenuItem from '@mui/material/MenuItem';
 import TableRow from '@mui/material/TableRow';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -22,6 +24,7 @@ import TableHead from '@mui/material/TableHead';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import CardHeader from '@mui/material/CardHeader';
+import IconButton from '@mui/material/IconButton';
 import DialogTitle from '@mui/material/DialogTitle';
 import CardContent from '@mui/material/CardContent';
 import DialogContent from '@mui/material/DialogContent';
@@ -35,6 +38,7 @@ import { DashboardContent } from 'src/layouts/dashboard';
 import { useAuthedQuery, useAuthedMutation } from 'src/api/use-authed-query';
 
 import { Iconify } from 'src/components/iconify';
+import { CustomPopover } from 'src/components/custom-popover';
 
 import { AdminPageHeading } from '../components';
 
@@ -117,6 +121,77 @@ function DetailItem({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function BookingActionsMenu({
+  isWorkingMode,
+  canConfirm,
+  canCloseJob,
+  canCancel,
+  onView,
+  onUpdateStatus,
+}: {
+  isWorkingMode: boolean;
+  canConfirm: boolean;
+  canCloseJob: boolean;
+  canCancel: boolean;
+  onView: () => void;
+  onUpdateStatus: (status: SpaBookingRequest['status']) => void;
+}) {
+  const menuActions = usePopover();
+
+  const handleView = () => {
+    menuActions.onClose();
+    onView();
+  };
+
+  const handleUpdateStatus = (status: SpaBookingRequest['status']) => {
+    menuActions.onClose();
+    onUpdateStatus(status);
+  };
+
+  return (
+    <>
+      <IconButton color={menuActions.open ? 'inherit' : 'default'} onClick={menuActions.onOpen}>
+        <Iconify icon="eva:more-vertical-fill" />
+      </IconButton>
+
+      <CustomPopover
+        open={menuActions.open}
+        anchorEl={menuActions.anchorEl}
+        onClose={menuActions.onClose}
+        slotProps={{ paper: { sx: { width: 180 } } }}
+      >
+        <MenuItem onClick={handleView}>
+          <Iconify icon="solar:eye-bold" />
+          ดูรายละเอียด
+        </MenuItem>
+
+        {!isWorkingMode && (
+          <MenuItem disabled={!canConfirm} onClick={() => handleUpdateStatus('confirmed')}>
+            <Iconify icon="solar:check-circle-bold" />
+            ยืนยันคิว
+          </MenuItem>
+        )}
+
+        {isWorkingMode && (
+          <MenuItem disabled={!canCloseJob} onClick={() => handleUpdateStatus('completed')}>
+            <Iconify icon="solar:check-circle-bold" />
+            ปิดงาน
+          </MenuItem>
+        )}
+
+        <MenuItem
+          disabled={!canCancel}
+          onClick={() => handleUpdateStatus('cancelled')}
+          sx={{ color: 'error.main' }}
+        >
+          <Iconify icon="solar:close-circle-bold" />
+          ยกเลิก
+        </MenuItem>
+      </CustomPopover>
+    </>
+  );
+}
+
 export function AdminServicesView({ mode = 'queue' }: Props) {
   const [activeStatusTab, setActiveStatusTab] = useState<QueueStatusFilter>('all');
   const [viewingBooking, setViewingBooking] = useState<SpaBookingRequest | null>(null);
@@ -172,7 +247,8 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
     { all: 0, pending: 0, confirmed: 0, in_progress: 0, cancelled: 0 }
   );
   const filteredBookings = bookingRequests.filter((booking) => {
-    const matchesStatus = isWorkingMode || activeStatusTab === 'all' || booking.status === activeStatusTab;
+    const matchesStatus =
+      isWorkingMode || activeStatusTab === 'all' || booking.status === activeStatusTab;
     const query = searchQuery.trim().toLowerCase();
     const matchesSearch =
       !query ||
@@ -330,73 +406,30 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
                         <Typography variant="body2">{booking.category}</Typography>
                       </TableCell>
                       <TableCell>
+                        <Chip size="small" variant="soft" label={`${booking.imageUrls.length}/4`} />
+                      </TableCell>
+                      <TableCell>
                         <Chip
                           size="small"
                           variant="soft"
-                          label={`${booking.imageUrls.length}/4`}
+                          color={status.color}
+                          label={status.label}
                         />
                       </TableCell>
                       <TableCell>
-                        <Chip size="small" variant="soft" color={status.color} label={status.label} />
-                      </TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => setViewingBooking(booking)}
-                            startIcon={<Iconify icon="solar:eye-bold" />}
-                          >
-                            ดู
-                          </Button>
-                          {!isWorkingMode && (
-                            <Button
-                              size="small"
-                              variant="contained"
-                              disabled={!canConfirm}
-                              onClick={() =>
-                                updateBookingStatus.mutate({
-                                  bookingId: booking.id,
-                                  status: 'confirmed',
-                                })
-                              }
-                              startIcon={<Iconify icon="solar:check-circle-bold" />}
-                            >
-                              ยืนยันคิว
-                            </Button>
-                          )}
-                          {isWorkingMode && (
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              disabled={!canCloseJob}
-                              onClick={() =>
-                                updateBookingStatus.mutate({
-                                  bookingId: booking.id,
-                                  status: 'completed',
-                                })
-                              }
-                              startIcon={<Iconify icon="solar:check-circle-bold" />}
-                            >
-                              ปิดงาน
-                            </Button>
-                          )}
-                          <Button
-                            size="small"
-                            color="error"
-                            variant="outlined"
-                            disabled={!canCancel}
-                            onClick={() =>
-                              updateBookingStatus.mutate({
-                                bookingId: booking.id,
-                                status: 'cancelled',
-                              })
-                            }
-                            startIcon={<Iconify icon="solar:close-circle-bold" />}
-                          >
-                            ยกเลิก
-                          </Button>
-                        </Stack>
+                        <BookingActionsMenu
+                          isWorkingMode={isWorkingMode}
+                          canConfirm={canConfirm}
+                          canCloseJob={canCloseJob}
+                          canCancel={canCancel}
+                          onView={() => setViewingBooking(booking)}
+                          onUpdateStatus={(status) =>
+                            updateBookingStatus.mutate({
+                              bookingId: booking.id,
+                              status,
+                            })
+                          }
+                        />
                       </TableCell>
                     </TableRow>
                   );
@@ -443,7 +476,12 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
         </CardContent>
       </Card>
 
-      <Dialog fullWidth maxWidth="md" open={!!viewingBooking} onClose={() => setViewingBooking(null)}>
+      <Dialog
+        fullWidth
+        maxWidth="md"
+        open={!!viewingBooking}
+        onClose={() => setViewingBooking(null)}
+      >
         <DialogTitle>รายละเอียดคำขอจองคิว</DialogTitle>
         <DialogContent>
           {viewingBooking && (
@@ -460,7 +498,13 @@ export function AdminServicesView({ mode = 'queue' }: Props) {
                 />
               </Stack>
 
-              <Box sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gap: 1.25,
+                  gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                }}
+              >
                 <DetailItem label="ลูกค้า" value={viewingBooking.customerName} />
                 <DetailItem label="เบอร์โทร" value={viewingBooking.phone} />
                 <DetailItem label="อีเมล" value={viewingBooking.customerEmail || '-'} />

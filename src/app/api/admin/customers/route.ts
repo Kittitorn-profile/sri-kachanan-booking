@@ -26,7 +26,7 @@ function mapCustomer(customer: any) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, 'customers');
 
   if (auth.response) {
     return auth.response;

@@ -18,7 +18,8 @@ import { _contacts, _notifications } from 'src/_mock';
 import { Logo } from 'src/components/logo';
 import { useSettingsContext } from 'src/components/settings';
 
-import { useMockedUser } from 'src/auth/hooks';
+import { useAuthContext } from 'src/auth/hooks';
+import { canAccessAdminPermission } from 'src/auth/utils';
 
 import { NavMobile } from './nav-mobile';
 import { VerticalDivider } from './content';
@@ -62,7 +63,7 @@ export function DashboardLayout({
 }: DashboardLayoutProps) {
   const theme = useTheme();
 
-  const { user } = useMockedUser();
+  const { user } = useAuthContext();
 
   const settings = useSettingsContext();
 
@@ -76,8 +77,21 @@ export function DashboardLayout({
   const isNavHorizontal = settings.state.navLayout === 'horizontal';
   const isNavVertical = isNavMini || settings.state.navLayout === 'vertical';
 
-  const canDisplayItemByRole = (allowedRoles: NavItemProps['allowedRoles']): boolean =>
-    !allowedRoles?.includes(user?.role);
+  const canDisplayItemByRole = (allowedRoles: NavItemProps['allowedRoles']): boolean => {
+    const permissions = Array.isArray(allowedRoles) ? allowedRoles : allowedRoles ? [allowedRoles] : [];
+
+    if (!permissions.length) {
+      return false;
+    }
+
+    if (permissions.includes(user?.role)) {
+      return false;
+    }
+
+    return !permissions.some((permission) =>
+      canAccessAdminPermission(user?.role, user?.adminPermissions, permission)
+    );
+  };
 
   const renderHeader = () => {
     const headerSlotProps: HeaderSectionProps['slotProps'] = {

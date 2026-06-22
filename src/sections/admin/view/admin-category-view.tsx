@@ -14,7 +14,6 @@ import Switch from '@mui/material/Switch';
 import Divider from '@mui/material/Divider';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import CardHeader from '@mui/material/CardHeader';
 import DialogTitle from '@mui/material/DialogTitle';
 import CardContent from '@mui/material/CardContent';
 import DialogActions from '@mui/material/DialogActions';
@@ -28,6 +27,7 @@ import { queryKeys } from 'src/api/query-keys';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { useAuthedQuery, useAuthedMutation } from 'src/api/use-authed-query';
 
+import { Editor } from 'src/components/editor';
 import { Iconify } from 'src/components/iconify';
 
 import { AdminPageHeading } from '../components';
@@ -38,6 +38,7 @@ type SpaCategory = {
   id: string;
   name: string;
   description: string;
+  price: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -46,16 +47,37 @@ type SpaCategory = {
 type CategoryForm = {
   name: string;
   description: string;
+  price: string;
   isActive: boolean;
 };
 
 const emptyCategoryForm: CategoryForm = {
   name: '',
   description: '',
+  price: '',
   isActive: true,
 };
 
 const rowsPerPageOptions = [5, 10, 25];
+
+function stripHtml(value: string) {
+  return value
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatPrice(price: number | null) {
+  return price === null ? '-' : `${price.toLocaleString()} บาท`;
+}
+
+function parseOptionalPrice(value: string) {
+  if (!value.trim()) {
+    return null;
+  }
+
+  return Number(value);
+}
 
 export function AdminCategoryView() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,7 +99,7 @@ export function AdminCategoryView() {
   });
   const saveCategory = useAuthedMutation<
     { category: SpaCategory },
-    { id?: string; name: string; description: string; isActive: boolean }
+    { id?: string; name: string; description: string; price: number | null; isActive: boolean }
   >({
     method: editingCategory ? 'patch' : 'post',
     url: endpoints.admin.spaCategories,
@@ -86,7 +108,7 @@ export function AdminCategoryView() {
       setIsCategoryDialogOpen(false);
       setEditingCategory(null);
     },
-    onError: (error) => setCategoryError(error.message || 'บันทึกหมวดหมู่ไม่สำเร็จ'),
+    onError: (error) => setCategoryError(error.message || 'บันทึกงานบริการไม่สำเร็จ'),
   });
   const deleteCategory = useAuthedMutation<{ success: boolean }, SpaCategory>({
     method: 'delete',
@@ -96,7 +118,7 @@ export function AdminCategoryView() {
       setDeletingCategory(null);
     },
     onError: (error) => {
-      setCategoryError(error.message || 'ลบหมวดหมู่ไม่สำเร็จ');
+      setCategoryError(error.message || 'ลบงานบริการไม่สำเร็จ');
       setDeletingCategory(null);
     },
   });
@@ -108,7 +130,12 @@ export function AdminCategoryView() {
       return true;
     }
 
-    return [category.name, category.description, category.isActive ? 'active' : 'inactive']
+    return [
+      category.name,
+      stripHtml(category.description),
+      formatPrice(category.price),
+      category.isActive ? 'active' : 'inactive',
+    ]
       .join(' ')
       .toLowerCase()
       .includes(query);
@@ -135,6 +162,7 @@ export function AdminCategoryView() {
     setCategoryForm({
       name: category.name,
       description: category.description,
+      price: category.price === null ? '' : String(category.price),
       isActive: category.isActive,
     });
     setIsCategoryDialogOpen(true);
@@ -150,7 +178,14 @@ export function AdminCategoryView() {
     const name = categoryForm.name.trim();
 
     if (!name) {
-      setCategoryError('กรุณากรอกชื่อหมวดหมู่');
+      setCategoryError('กรุณากรอกชื่องานบริการ');
+      return;
+    }
+
+    const price = parseOptionalPrice(categoryForm.price);
+
+    if (price !== null && (!Number.isFinite(price) || price < 0)) {
+      setCategoryError('กรุณาระบุราคาเป็นตัวเลข 0 ขึ้นไป');
       return;
     }
 
@@ -158,9 +193,17 @@ export function AdminCategoryView() {
       id: editingCategory?.id,
       name,
       description: categoryForm.description,
+      price,
       isActive: categoryForm.isActive,
     });
-  }, [categoryForm.description, categoryForm.isActive, categoryForm.name, editingCategory, saveCategory]);
+  }, [
+    categoryForm.description,
+    categoryForm.isActive,
+    categoryForm.name,
+    categoryForm.price,
+    editingCategory,
+    saveCategory,
+  ]);
 
   const handleDeleteCategory = useCallback(async () => {
     if (!deletingCategory) {
@@ -173,21 +216,20 @@ export function AdminCategoryView() {
   return (
     <DashboardContent maxWidth="xl" sx={{ mt: 10 }}>
       <AdminPageHeading
-        title="Master หมวดหมู่บริการ"
-        description="จัดการหมวดหมู่สำหรับแยกกลุ่มบริการสปา"
+        title="งานบริการ"
+        description="จัดการงานบริการ ราคา และรายละเอียดที่ลูกค้าเลือกตอนจอง"
         action={
           <Button
             variant="contained"
             onClick={handleOpenCreateCategory}
             startIcon={<Iconify icon="solar:add-circle-bold" />}
           >
-            เพิ่มหมวดหมู่
+            เพิ่มงานบริการ
           </Button>
         }
       />
 
       <Card>
-        <CardHeader title="หมวดหมู่การทำสปา" subheader="Master category สำหรับจัดกลุ่มบริการสปา" />
         <CardContent>
           {(categoryError || fetchCategoryError) && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -198,7 +240,7 @@ export function AdminCategoryView() {
           <TextField
             fullWidth
             value={searchQuery}
-            placeholder="ค้นหาชื่อหมวดหมู่ รายละเอียด หรือสถานะ"
+            placeholder="ค้นหาชื่องานบริการ รายละเอียด ราคา หรือสถานะ"
             onChange={(event) => {
               setSearchQuery(event.target.value);
               setPage(0);
@@ -220,10 +262,10 @@ export function AdminCategoryView() {
               mb: 1,
               display: { xs: 'none', md: 'grid' },
               gap: 2,
-              gridTemplateColumns: '1fr 1.7fr 120px 170px',
+              gridTemplateColumns: '1fr 1.7fr 130px 120px 170px',
             }}
           >
-            {['หมวดหมู่', 'รายละเอียด', 'สถานะ', 'จัดการ'].map((column) => (
+            {['งานบริการ', 'รายละเอียด', 'ราคา', 'สถานะ', 'จัดการ'].map((column) => (
               <Typography key={column} variant="caption" sx={{ color: 'text.secondary' }}>
                 {column}
               </Typography>
@@ -239,13 +281,25 @@ export function AdminCategoryView() {
                   display: 'grid',
                   gap: { xs: 1.25, md: 2 },
                   alignItems: 'start',
-                  gridTemplateColumns: { xs: '1fr', md: '1fr 1.7fr 120px 170px' },
+                  gridTemplateColumns: { xs: '1fr', md: '1fr 1.7fr 130px 120px 170px' },
                 }}
               >
                 <Typography sx={{ fontWeight: 800 }}>{category.name}</Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  {category.description || '-'}
-                </Typography>
+                {category.description ? (
+                  <Box
+                    sx={{
+                      color: 'text.secondary',
+                      typography: 'body2',
+                      '& p': { m: 0 },
+                    }}
+                    dangerouslySetInnerHTML={{ __html: category.description }}
+                  />
+                ) : (
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    -
+                  </Typography>
+                )}
+                <Typography variant="body2">{formatPrice(category.price)}</Typography>
                 <Chip
                   size="small"
                   variant="soft"
@@ -299,41 +353,68 @@ export function AdminCategoryView() {
                 bgcolor: 'background.neutral',
               }}
             >
-              <Typography sx={{ fontWeight: 800 }}>ยังไม่มีหมวดหมู่บริการ</Typography>
+              <Typography sx={{ fontWeight: 800 }}>ยังไม่มีงานบริการ</Typography>
             </Box>
           )}
 
           {loadingCategories && (
             <Box sx={{ py: 4, textAlign: 'center' }}>
-              <Typography sx={{ color: 'text.secondary' }}>กำลังโหลดหมวดหมู่...</Typography>
+              <Typography sx={{ color: 'text.secondary' }}>กำลังโหลดงานบริการ...</Typography>
             </Box>
           )}
         </CardContent>
       </Card>
 
-      <Dialog fullWidth maxWidth="sm" open={isCategoryDialogOpen} onClose={handleCloseCategoryDialog}>
-        <DialogTitle>{editingCategory ? 'แก้ไขหมวดหมู่' : 'เพิ่มหมวดหมู่'}</DialogTitle>
+      <Dialog
+        fullWidth
+        maxWidth="sm"
+        open={isCategoryDialogOpen}
+        onClose={handleCloseCategoryDialog}
+      >
+        <DialogTitle>{editingCategory ? 'แก้ไขงานบริการ' : 'เพิ่มงานบริการ'}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             {categoryError && <Alert severity="error">{categoryError}</Alert>}
 
             <TextField
               autoFocus
-              label="ชื่อหมวดหมู่"
+              label="ชื่องานบริการ"
               value={categoryForm.name}
               onChange={(event) =>
                 setCategoryForm((current) => ({ ...current, name: event.target.value }))
               }
             />
             <TextField
-              multiline
-              minRows={3}
-              label="รายละเอียด"
-              value={categoryForm.description}
+              type="number"
+              label="ราคา"
+              value={categoryForm.price}
               onChange={(event) =>
-                setCategoryForm((current) => ({ ...current, description: event.target.value }))
+                setCategoryForm((current) => ({ ...current, price: event.target.value }))
               }
+              helperText="เว้นว่างได้"
+              slotProps={{
+                htmlInput: { min: 0, step: 0.01 },
+                input: {
+                  endAdornment: <InputAdornment position="end">บาท</InputAdornment>,
+                },
+              }}
             />
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{ mb: 0.75, display: 'block', color: 'text.secondary' }}
+              >
+                รายละเอียด
+              </Typography>
+              <Editor
+                value={categoryForm.description}
+                placeholder="รายละเอียดงานบริการ"
+                onChange={(value) =>
+                  setCategoryForm((current) => ({ ...current, description: value }))
+                }
+                sx={{ minHeight: 220 }}
+              />
+            </Box>
             <FormControlLabel
               label="เปิดใช้งาน"
               control={
@@ -354,16 +435,20 @@ export function AdminCategoryView() {
           <Button variant="outlined" onClick={handleCloseCategoryDialog}>
             ยกเลิก
           </Button>
-          <Button variant="contained" disabled={!categoryForm.name.trim()} onClick={handleSaveCategory}>
+          <Button
+            variant="contained"
+            disabled={!categoryForm.name.trim()}
+            onClick={handleSaveCategory}
+          >
             บันทึก
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={!!deletingCategory} onClose={() => setDeletingCategory(null)}>
-        <DialogTitle>ลบหมวดหมู่</DialogTitle>
+        <DialogTitle>ลบงานบริการ</DialogTitle>
         <DialogContent>
-          <Typography>ต้องการลบหมวดหมู่ {deletingCategory?.name} หรือไม่?</Typography>
+          <Typography>ต้องการลบงานบริการ {deletingCategory?.name} หรือไม่?</Typography>
         </DialogContent>
         <DialogActions>
           <Button variant="outlined" onClick={() => setDeletingCategory(null)}>

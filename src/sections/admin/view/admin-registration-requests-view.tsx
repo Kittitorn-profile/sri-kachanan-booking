@@ -88,10 +88,7 @@ export function AdminRegistrationRequestsView() {
   const [requestsError, setRequestsError] = useState<string | null>(null);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const {
-    data,
-    error: fetchRequestsError,
-  } = useAuthedQuery<AdminUsersResponse>({
+  const { data, error: fetchRequestsError } = useAuthedQuery<AdminUsersResponse>({
     queryKey: queryKeys.admin.users('user'),
     url: `${endpoints.admin.users}?role=user`,
   });
@@ -132,8 +129,7 @@ export function AdminRegistrationRequestsView() {
     { all: 0, pending: 0, approved: 0, rejected: 0 }
   );
   const filteredRegistrationRequests = registrationRequests.filter((request) => {
-    const matchesStatus =
-      activeStatusTab === 'all' || request.approvalStatus === activeStatusTab;
+    const matchesStatus = activeStatusTab === 'all' || request.approvalStatus === activeStatusTab;
     const query = searchQuery.trim().toLowerCase();
     const matchesSearch =
       !query ||
@@ -258,7 +254,6 @@ export function AdminRegistrationRequestsView() {
                         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                           {request.email}
                         </Typography>
-                        <AdminStatusPill>role: user</AdminStatusPill>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">{request.phone}</Typography>

@@ -75,6 +75,7 @@ export const endpoints = {
     syncProfile: '/api/auth/sync-profile',
   },
   admin: {
+    dashboard: '/api/admin/dashboard',
     users: '/api/admin/users',
     customers: '/api/admin/customers',
     spaBookings: '/api/admin/spa-bookings',
@@ -82,6 +83,7 @@ export const endpoints = {
     spaPromotions: '/api/admin/spa-promotions',
     bookingAvailability: '/api/admin/booking-availability',
   },
+  home: '/api/home',
   spaCategories: '/api/spa-categories',
   booking: '/api/booking',
   mail: {

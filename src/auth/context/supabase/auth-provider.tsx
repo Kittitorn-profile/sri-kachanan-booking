@@ -26,6 +26,7 @@ type UserProfileAuth = {
   display_name: string;
   role: 'admin' | 'employee' | 'user';
   approval_status: 'pending' | 'approved' | 'rejected';
+  admin_permissions: string[];
 };
 
 function getSessionProfile(user: NonNullable<AuthState['user']>['user']): UserProfileAuth {
@@ -53,6 +54,11 @@ function getSessionProfile(user: NonNullable<AuthState['user']>['user']): UserPr
             'approved')
           : ((metadata.approval_status as UserProfileAuth['approval_status'] | undefined) ??
             'pending'),
+    admin_permissions: Array.isArray(metadata.admin_permissions)
+      ? metadata.admin_permissions.filter(
+          (permission: unknown): permission is string => typeof permission === 'string'
+        )
+      : [],
   };
 }
 
@@ -140,6 +146,7 @@ export function AuthProvider({ children }: Props) {
             displayName: state.user?.profile?.display_name ?? state.user?.email,
             role: state.user?.profile?.role ?? 'user',
             approvalStatus: state.user?.profile?.approval_status,
+            adminPermissions: state.user?.profile?.admin_permissions ?? [],
           }
         : null,
       checkUserSession,

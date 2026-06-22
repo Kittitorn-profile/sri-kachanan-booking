@@ -36,7 +36,7 @@ import {
   type AdminStaffStatus,
 } from 'src/sections/admin/data/admin-data';
 
-import { AdminStatusPill, AdminPageHeading } from '../components';
+import { AdminPageHeading } from '../components';
 
 // ----------------------------------------------------------------------
 
@@ -50,6 +50,13 @@ type CreateStaffBody = {
   displayName: string;
   role: 'employee';
   approvalStatus: 'approved' | 'rejected';
+  adminPermissions: string[];
+};
+
+type UpdateStaffBody = {
+  userId: string;
+  approvalStatus: 'approved' | 'rejected';
+  adminPermissions: string[];
 };
 
 const emptyStaffForm: StaffForm = {
@@ -110,6 +117,24 @@ export function AdminStaffView() {
     url: endpoints.admin.users,
     onError: (error) => {
       setStaffFormError(error.message || 'สร้างบัญชีพนักงานไม่สำเร็จ');
+    },
+  });
+  const updateStaff = useAuthedMutation<
+    {
+      user: {
+        id: string;
+        email: string;
+        displayName: string;
+        approvalStatus: 'approved' | 'rejected';
+        adminPermissions: string[];
+      };
+    },
+    UpdateStaffBody
+  >({
+    method: 'patch',
+    url: endpoints.admin.users,
+    onError: (error) => {
+      setStaffFormError(error.message || 'แก้ไขสิทธิ์พนักงานไม่สำเร็จ');
     },
   });
 
@@ -196,32 +221,43 @@ export function AdminStaffView() {
       workload: staffForm.workload.trim() || 'ยังไม่มีคิววันนี้',
     };
 
-    if (editingStaff) {
-      setStaffMembers((current) =>
-        current.map((staff) => (staff.id === editingStaff.id ? { ...staff, ...nextStaff } : staff))
-      );
-    } else {
-      try {
-        setStaffFormError(null);
+    try {
+      setStaffFormError(null);
 
+      if (editingStaff) {
+        if (!editingStaff.id.startsWith('staff-')) {
+          await updateStaff.mutateAsync({
+            userId: editingStaff.id,
+            approvalStatus: staffForm.status === 'active' ? 'approved' : 'rejected',
+            adminPermissions: staffForm.permissions,
+          });
+        }
+
+        setStaffMembers((current) =>
+          current.map((staff) =>
+            staff.id === editingStaff.id ? { ...staff, ...nextStaff } : staff
+          )
+        );
+      } else {
         const data = await createStaff.mutateAsync({
           email,
           password,
           displayName: name,
           role: 'employee',
           approvalStatus: staffForm.status === 'active' ? 'approved' : 'rejected',
+          adminPermissions: staffForm.permissions,
         });
 
         setStaffMembers((current) => [...current, { ...nextStaff, id: data.user.id }]);
-      } catch (error) {
-        setStaffFormError(error instanceof Error ? error.message : 'สร้างบัญชีพนักงานไม่สำเร็จ');
-        return;
       }
+    } catch (error) {
+      setStaffFormError(error instanceof Error ? error.message : 'บันทึกข้อมูลพนักงานไม่สำเร็จ');
+      return;
     }
 
     setIsFormDialogOpen(false);
     setEditingStaff(null);
-  }, [createStaff, editingStaff, staffForm]);
+  }, [createStaff, editingStaff, staffForm, updateStaff]);
 
   const handleDeleteStaff = useCallback(() => {
     if (!deletingStaff) {
@@ -311,7 +347,6 @@ export function AdminStaffView() {
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     {staff.email}
                   </Typography>
-                  <AdminStatusPill>{staff.permissions.length} เมนู</AdminStatusPill>
                 </Box>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                   {staff.specialty}
@@ -562,9 +597,7 @@ export function AdminStaffView() {
       <Dialog open={!!deletingStaff} onClose={() => setDeletingStaff(null)}>
         <DialogTitle>ลบพนักงาน</DialogTitle>
         <DialogContent>
-          <Typography>
-            ต้องการลบ {deletingStaff?.name} ออกจากรายการพนักงานหรือไม่?
-          </Typography>
+          <Typography>ต้องการลบ {deletingStaff?.name} ออกจากรายการพนักงานหรือไม่?</Typography>
         </DialogContent>
         <DialogActions>
           <Button variant="outlined" onClick={() => setDeletingStaff(null)}>

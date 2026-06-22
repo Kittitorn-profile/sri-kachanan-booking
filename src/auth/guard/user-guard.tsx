@@ -6,6 +6,7 @@ import { SplashScreen } from 'src/components/loading-screen';
 
 import { AuthGuard } from './auth-guard';
 import { useAuthContext } from '../hooks';
+import { getAdminPermissions, getFirstAdminPath, isBackOfficeRole } from '../utils';
 
 // ----------------------------------------------------------------------
 
@@ -21,8 +22,8 @@ function UserPermissionGuard({ children }: UserGuardProps) {
     return <SplashScreen />;
   }
 
-  if (user?.role === 'admin') {
-    router.replace('/admin');
+  if (isBackOfficeRole(user?.role)) {
+    router.replace(getFirstAdminPath(getAdminPermissions(user?.role, user?.adminPermissions)));
     return <SplashScreen />;
   }
 

@@ -37,7 +37,7 @@ const bookingSelect = `
   created_at,
   updated_at,
   user_profiles (email, display_name),
-  spa_service_categories (name),
+  spa_service_categories (name, price),
   spa_services (name, duration_minutes, price),
   spa_staff (display_name)
 `;
@@ -58,7 +58,7 @@ function mapBooking(booking: any) {
     service: booking.spa_service_categories?.name ?? booking.spa_services?.name ?? '-',
     category: booking.spa_service_categories?.name ?? '-',
     duration: `${booking.spa_services?.duration_minutes ?? 0} นาที`,
-    price: Number(booking.spa_services?.price ?? 0),
+    price: Number(booking.spa_service_categories?.price ?? booking.spa_services?.price ?? 0),
     staff: booking.spa_staff?.display_name ?? '-',
     date: booking.booking_date,
     time: String(booking.booking_time).slice(0, 5),
@@ -149,7 +149,7 @@ async function upsertCompletedCustomer(bookingId: string) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireBackOffice(request);
+  const auth = await requireBackOffice(request, 'services');
 
   if (auth.response) {
     return auth.response;
@@ -183,7 +183,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireBackOffice(request);
+  const auth = await requireBackOffice(request, 'services');
 
   if (auth.response) {
     return auth.response;

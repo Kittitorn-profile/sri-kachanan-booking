@@ -48,6 +48,7 @@ type SpaCategory = {
   id: string;
   name: string;
   description: string;
+  price: number | null;
 };
 
 type AvailabilityDay = {
@@ -340,6 +341,7 @@ function BookingDrawer({
                 }}
               >
                 <span>{category.name}</span>
+                {category.price !== null && <span>{category.price.toLocaleString()} บาท</span>}
               </Button>
             );
           })}
@@ -1164,7 +1166,7 @@ export function BookingView() {
                             </Pill>
                           </Stack>
                           <Typography sx={{ mt: 0.5, color: '#64706b', fontSize: 14 }}>
-                            {booking.id} • {booking.dateLabel} เวลา {booking.time}
+                            {booking.dateLabel} เวลา {booking.time}
                           </Typography>
                           <Typography sx={{ mt: 0.6, color: '#7a6a58', fontSize: 13 }}>
                             {booking.duration} • {booking.price.toLocaleString()} บาท •{' '}

@@ -13,15 +13,28 @@ type CategoryBody = {
   id?: string;
   name?: string;
   description?: string;
+  price?: number | null;
   isActive?: boolean;
 };
+
+function validatePrice(price: number | null | undefined) {
+  if (price === undefined || price === null) {
+    return null;
+  }
+
+  if (!Number.isFinite(price) || price < 0) {
+    return 'กรุณาระบุราคาเป็นตัวเลข 0 ขึ้นไป';
+  }
+
+  return null;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const includeInactive = searchParams.get('includeInactive') === 'true';
 
   if (includeInactive) {
-    const auth = await requireAdmin(request);
+    const auth = await requireAdmin(request, 'categories');
 
     if (auth.response) {
       return auth.response;
@@ -38,7 +51,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, 'categories');
 
   if (auth.response) {
     return auth.response;
@@ -51,11 +64,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Missing category name' }, { status: 400 });
   }
 
+  const priceError = validatePrice(body.price);
+
+  if (priceError) {
+    return NextResponse.json({ message: priceError }, { status: 400 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from('spa_service_categories')
     .insert({
       name,
-      description: body.description?.trim() ?? '',
+      description: body.description ?? '',
+      price: body.price ?? null,
       is_active: body.isActive ?? true,
     })
     .select(categorySelect)
@@ -71,7 +91,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, 'categories');
 
   if (auth.response) {
     return auth.response;
@@ -84,11 +104,18 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: 'Missing category id or name' }, { status: 400 });
   }
 
+  const priceError = validatePrice(body.price);
+
+  if (priceError) {
+    return NextResponse.json({ message: priceError }, { status: 400 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from('spa_service_categories')
     .update({
       name,
-      description: body.description?.trim() ?? '',
+      description: body.description ?? '',
+      price: body.price ?? null,
       is_active: body.isActive ?? true,
     })
     .eq('id', body.id)
@@ -105,7 +132,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, 'categories');
 
   if (auth.response) {
     return auth.response;
@@ -126,7 +153,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json(
       {
         message: isReferenced
-          ? 'หมวดหมู่นี้ถูกใช้งานกับบริการอยู่ กรุณาปิดใช้งานแทนการลบ'
+          ? 'งานบริการนี้ถูกใช้งานอยู่ กรุณาปิดใช้งานแทนการลบ'
           : error.message,
       },
       { status: isReferenced ? 409 : 400 }

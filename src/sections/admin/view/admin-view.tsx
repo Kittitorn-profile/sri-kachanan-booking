@@ -11,22 +11,96 @@ import CardContent from '@mui/material/CardContent';
 
 import { paths } from 'src/routes/paths';
 
+import { endpoints } from 'src/lib/axios';
+import { queryKeys } from 'src/api/query-keys';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { useAuthedQuery } from 'src/api/use-authed-query';
 
 import { Iconify } from 'src/components/iconify';
-
-import {
-  adminStats,
-  adminBookings,
-  adminCustomers,
-  adminPromotions,
-} from 'src/sections/admin/data/admin-data';
 
 import { AdminTable, AdminStatusPill, AdminPageHeading } from '../components';
 
 // ----------------------------------------------------------------------
 
+type DashboardBooking = {
+  id: string;
+  time: string;
+  customerName: string;
+  service: string;
+  staff: string;
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+};
+
+type DashboardPromotion = {
+  id: string;
+  title: string;
+  code: string;
+  discountLabel: string;
+};
+
+type AdminDashboardResponse = {
+  stats: {
+    bookingsToday: number;
+    revenueThisMonth: number;
+    customers: number;
+    activePromotions: number;
+    queueAvailable: number | null;
+  };
+  bookings: DashboardBooking[];
+  promotions: DashboardPromotion[];
+  customers: string[][];
+};
+
+const bookingStatusLabels: Record<DashboardBooking['status'], string> = {
+  pending: 'รอยืนยันคิว',
+  confirmed: 'ยืนยันคิวแล้ว',
+  in_progress: 'เปิดงานแล้ว',
+  completed: 'ปิดงานแล้ว',
+  cancelled: 'ยกเลิก',
+};
+
+function formatMoney(value: number) {
+  return value >= 1000 ? `${(value / 1000).toFixed(value >= 100000 ? 0 : 1)}K` : value.toLocaleString();
+}
+
 export function AdminView() {
+  const {
+    data,
+    error,
+    isLoading,
+    refetch,
+  } = useAuthedQuery<AdminDashboardResponse>({
+    queryKey: queryKeys.admin.dashboard,
+    url: endpoints.admin.dashboard,
+  });
+  const stats = data?.stats;
+  const adminStats = [
+    {
+      label: 'ยอดจองวันนี้',
+      value: String(stats?.bookingsToday ?? 0),
+      icon: 'solar:calendar-date-bold' as const,
+      color: '#2f7d54',
+    },
+    {
+      label: 'รายได้เดือนนี้',
+      value: formatMoney(stats?.revenueThisMonth ?? 0),
+      icon: 'solar:wad-of-money-bold' as const,
+      color: '#8a5b26',
+    },
+    {
+      label: 'ลูกค้าทั้งหมด',
+      value: String(stats?.customers ?? 0),
+      icon: 'solar:users-group-rounded-bold-duotone' as const,
+      color: '#3d61a8',
+    },
+    {
+      label: 'คิวว่างวันนี้',
+      value: stats?.queueAvailable === null ? 'ไม่จำกัด' : String(stats?.queueAvailable ?? 0),
+      icon: 'solar:clock-circle-bold' as const,
+      color: '#8c4f9f',
+    },
+  ];
+
   return (
     <DashboardContent maxWidth="xl" sx={{ mt: 10 }}>
       <AdminPageHeading
@@ -34,15 +108,27 @@ export function AdminView() {
         description="ภาพรวมยอดจอง ลูกค้า โปรโมชั่น และทางลัดไปยังหน้าจัดการหลัก"
         action={
           <Stack direction="row" spacing={1}>
-            <Button variant="outlined" startIcon={<Iconify icon="solar:download-bold" />}>
-              ส่งออกรายงาน
+            <Button
+              variant="outlined"
+              onClick={() => refetch()}
+              startIcon={<Iconify icon="solar:restart-bold" />}
+            >
+              รีเฟรช
             </Button>
-            <Button variant="contained" startIcon={<Iconify icon="solar:add-circle-bold" />}>
-              เพิ่มการจอง
+            <Button href={paths.admin.servicesQueue} variant="contained" startIcon={<Iconify icon="solar:add-circle-bold" />}>
+              ดูคิวทั้งหมด
             </Button>
           </Stack>
         }
       />
+
+      {error && (
+        <Card sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography color="error">{error.message}</Typography>
+          </CardContent>
+        </Card>
+      )}
 
       <Box
         sx={{
@@ -94,9 +180,18 @@ export function AdminView() {
           />
           <CardContent>
             <Stack divider={<Divider flexItem />}>
-              {adminBookings.map((row) => (
+              {(data?.bookings ?? []).map((booking) => {
+                const row = [
+                  booking.time,
+                  booking.customerName,
+                  booking.service,
+                  `พนักงาน: ${booking.staff}`,
+                  bookingStatusLabels[booking.status],
+                ];
+
+                return (
                 <Box
-                  key={row.join('-')}
+                  key={booking.id}
                   sx={{
                     py: 1.5,
                     display: 'grid',
@@ -115,7 +210,18 @@ export function AdminView() {
                     )
                   )}
                 </Box>
-              ))}
+                );
+              })}
+              {!data?.bookings.length && !isLoading && (
+                <Typography variant="body2" sx={{ py: 2, color: 'text.secondary' }}>
+                  วันนี้ยังไม่มีรายการจอง
+                </Typography>
+              )}
+              {isLoading && (
+                <Typography variant="body2" sx={{ py: 2, color: 'text.secondary' }}>
+                  กำลังโหลดข้อมูล dashboard...
+                </Typography>
+              )}
             </Stack>
           </CardContent>
         </Card>
@@ -137,9 +243,9 @@ export function AdminView() {
           />
           <CardContent>
             <Stack spacing={1.5}>
-              {adminPromotions.map((promotion) => (
+              {(data?.promotions ?? []).map((promotion) => (
                 <Box
-                  key={promotion}
+                  key={promotion.id}
                   sx={{
                     p: 1.5,
                     display: 'flex',
@@ -150,9 +256,17 @@ export function AdminView() {
                   }}
                 >
                   <Iconify icon="solar:tag-horizontal-bold-duotone" />
-                  <Typography variant="body2">{promotion}</Typography>
+                  <Typography variant="body2">
+                    {promotion.title}
+                    {promotion.discountLabel ? ` (${promotion.discountLabel})` : ''}
+                  </Typography>
                 </Box>
               ))}
+              {!data?.promotions.length && !isLoading && (
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  ยังไม่มีโปรโมชั่นที่เปิดใช้งาน
+                </Typography>
+              )}
             </Stack>
           </CardContent>
         </Card>
@@ -169,7 +283,7 @@ export function AdminView() {
         <AdminTable
           title="จัดการลูกค้า CRM"
           columns={['ลูกค้า', 'กลุ่ม', 'จำนวนใช้บริการ', 'หมายเหตุ']}
-          rows={adminCustomers}
+          rows={data?.customers ?? []}
         />
 
         <Card>
@@ -179,7 +293,7 @@ export function AdminView() {
               {[
                 ['คำขอสมัครสมาชิก', paths.admin.registrationRequests],
                 ['คิวทั้งหมด', paths.admin.servicesQueue],
-                ['หมวดหมู่บริการ', paths.master.category],
+                ['งานบริการ', paths.master.category],
                 ['โปรโมชั่น / คูปอง', paths.admin.promotions],
                 ['พนักงาน', paths.admin.staff],
                 ['รายงานรายได้', paths.admin.revenue],

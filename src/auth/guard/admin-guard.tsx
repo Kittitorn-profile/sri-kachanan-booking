@@ -1,11 +1,18 @@
 'use client';
 
-import { useRouter } from 'src/routes/hooks';
+import { useRouter, usePathname } from 'src/routes/hooks';
 
 import { SplashScreen } from 'src/components/loading-screen';
 
 import { AuthGuard } from './auth-guard';
 import { useAuthContext } from '../hooks';
+import {
+  getFirstAdminPath,
+  isBackOfficeRole,
+  getAdminPermissions,
+  getAdminPermissionForPath,
+  canAccessAdminPermission,
+} from '../utils';
 
 // ----------------------------------------------------------------------
 
@@ -15,14 +22,22 @@ type AdminGuardProps = {
 
 function AdminPermissionGuard({ children }: AdminGuardProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading } = useAuthContext();
 
   if (loading) {
     return <SplashScreen />;
   }
 
-  if (!['admin', 'employee'].includes(user?.role)) {
+  if (!isBackOfficeRole(user?.role)) {
     router.replace('/');
+    return <SplashScreen />;
+  }
+
+  const currentPermission = getAdminPermissionForPath(pathname);
+
+  if (!canAccessAdminPermission(user?.role, user?.adminPermissions, currentPermission)) {
+    router.replace(getFirstAdminPath(getAdminPermissions(user?.role, user?.adminPermissions)));
     return <SplashScreen />;
   }
 

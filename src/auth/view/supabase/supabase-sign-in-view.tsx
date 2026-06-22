@@ -22,7 +22,7 @@ import { Iconify } from 'src/components/iconify';
 import { Form, Field, schemaUtils } from 'src/components/hook-form';
 
 import { useAuthContext } from '../../hooks';
-import { getErrorMessage } from '../../utils';
+import { getAdminPermissions, getErrorMessage, getFirstAdminPath, isBackOfficeRole } from '../../utils';
 import { FormHead } from '../../components/form-head';
 import { signInWithPassword } from '../../context/supabase';
 
@@ -78,7 +78,11 @@ export function SupabaseSignInView() {
 
       const role = response.data.profile.role;
       const redirectPath =
-        role === 'admin' ? '/admin' : getUserRedirectPath(searchParams.get('returnTo'));
+        isBackOfficeRole(role)
+          ? getFirstAdminPath(
+              getAdminPermissions(role, response.data.profile.admin_permissions ?? [])
+            )
+          : getUserRedirectPath(searchParams.get('returnTo'));
 
       router.replace(redirectPath);
     } catch (error) {

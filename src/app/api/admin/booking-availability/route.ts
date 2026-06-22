@@ -98,7 +98,7 @@ function mapAvailabilityError(error: { code?: string; message: string }) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, 'availability');
 
   if (auth.response) {
     return auth.response;
@@ -131,7 +131,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, 'availability');
 
   if (auth.response) {
     return auth.response;
@@ -160,7 +160,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, 'availability');
 
   if (auth.response) {
     return auth.response;
@@ -194,7 +194,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, 'availability');
 
   if (auth.response) {
     return auth.response;

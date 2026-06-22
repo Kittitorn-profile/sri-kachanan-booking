@@ -9,6 +9,29 @@ export const runtime = 'nodejs';
 type AppRole = 'admin' | 'employee' | 'user';
 type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
+const adminPermissionValues = [
+  'dashboard',
+  'registrationRequests',
+  'customers',
+  'services',
+  'staff',
+  'availability',
+  'promotions',
+  'categories',
+  'revenue',
+];
+
+function normalizeAdminPermissions(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (permission): permission is string =>
+      typeof permission === 'string' && adminPermissionValues.includes(permission)
+  );
+}
+
 export async function POST(request: Request) {
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
 
@@ -39,6 +62,18 @@ export async function POST(request: Request) {
         : ((metadata.approval_status as ApprovalStatus | undefined) ?? 'pending');
   const displayName =
     (metadata.display_name as string | undefined) || data.user.email || (role === 'admin' ? 'Super Admin' : '');
+  const { data: existingProfile } = await supabaseAdmin
+    .from('user_profiles')
+    .select('admin_permissions')
+    .eq('id', data.user.id)
+    .maybeSingle();
+  const hasMetadataPermissions = Array.isArray(metadata.admin_permissions);
+  const adminPermissions =
+    role === 'employee'
+      ? hasMetadataPermissions
+        ? normalizeAdminPermissions(metadata.admin_permissions)
+        : normalizeAdminPermissions(existingProfile?.admin_permissions ?? ['dashboard'])
+      : [];
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('user_profiles')
@@ -49,12 +84,13 @@ export async function POST(request: Request) {
         display_name: displayName,
         role,
         approval_status: approvalStatus,
+        admin_permissions: adminPermissions,
         approved_at: approvalStatus === 'approved' ? new Date().toISOString() : null,
         rejected_at: null,
       },
       { onConflict: 'id' }
     )
-    .select('display_name, role, approval_status')
+    .select('display_name, role, approval_status, admin_permissions')
     .single();
 
   if (profileError) {
