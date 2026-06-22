@@ -1,52 +1,105 @@
 import type { NavSectionProps } from 'src/components/nav-section';
 
+import { paths } from 'src/routes/paths';
+
 import { Iconify } from 'src/components/iconify';
+
+import { RegistrationRequestsBadge } from './components/registration-requests-badge';
 
 // ----------------------------------------------------------------------
 
 export const adminNavData: NavSectionProps['data'] = [
   {
-    subheader: 'จัดการ',
+    subheader: 'ภาพรวม',
     items: [
       {
-        title: 'Dashboard',
-        path: '/admin',
+        title: 'แดชบอร์ด',
+        path: paths.admin.root,
+        allowedRoles: ['admin', 'employee'],
         icon: <Iconify icon="solar:home-angle-bold-duotone" />,
-      },
-      {
-        title: 'บริการสปา',
-        path: '/admin#services',
-        icon: <Iconify icon="solar:tea-cup-bold" />,
-      },
-      {
-        title: 'พนักงาน',
-        path: '/admin#staff',
-        icon: <Iconify icon="solar:users-group-rounded-bold-duotone" />,
-      },
-      {
-        title: 'ลูกค้า CRM',
-        path: '/admin#customers',
-        icon: <Iconify icon="solar:user-rounded-bold" />,
-      },
-      {
-        title: 'โปรโมชั่น / คูปอง',
-        path: '/admin#promotions',
-        icon: <Iconify icon="solar:tag-horizontal-bold-duotone" />,
-      },
-      {
-        title: 'รายงานรายได้',
-        path: '/admin#reports',
-        icon: <Iconify icon="solar:chart-square-outline" />,
       },
     ],
   },
   {
-    subheader: 'หน้าร้าน',
+    subheader: 'ผู้ใช้งาน',
     items: [
       {
-        title: 'กลับหน้าเว็บไซต์',
-        path: '/',
-        icon: <Iconify icon="solar:reply-bold" />,
+        title: 'จัดการผู้ใช้งาน',
+        path: paths.admin.users,
+        allowedRoles: ['admin'],
+        icon: <Iconify icon="solar:user-rounded-bold" />,
+        children: [
+          {
+            title: 'คำขอสมัครสมาชิก',
+            path: paths.admin.registrationRequests,
+            info: <RegistrationRequestsBadge />,
+          },
+          {
+            title: 'ลูกค้า',
+            path: paths.admin.customers,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    subheader: 'งานสปา',
+    items: [
+      {
+        title: 'บริการสปา',
+        path: paths.admin.services,
+        allowedRoles: ['admin', 'employee'],
+        icon: <Iconify icon="solar:tea-cup-bold" />,
+        children: [
+          {
+            title: 'คิวทั้งหมด',
+            path: paths.admin.servicesQueue,
+          },
+          {
+            title: 'กำลังให้บริการ',
+            path: paths.admin.servicesWorking,
+          },
+        ],
+      },
+      {
+        title: 'พนักงาน',
+        path: paths.admin.staff,
+        allowedRoles: ['admin'],
+        icon: <Iconify icon="solar:users-group-rounded-bold-duotone" />,
+      },
+      {
+        title: 'วันเวลาเปิดรับคิว',
+        path: paths.admin.availability,
+        allowedRoles: ['admin'],
+        icon: <Iconify icon="solar:calendar-date-bold" />,
+      },
+      {
+        title: 'โปรโมชั่น / คูปอง',
+        path: paths.admin.promotions,
+        allowedRoles: ['admin'],
+        icon: <Iconify icon="solar:tag-horizontal-bold-duotone" />,
+      },
+    ],
+  },
+  {
+    subheader: 'ข้อมูลหลัก',
+    items: [
+      {
+        title: 'หมวดหมู่บริการ',
+        path: paths.master.category,
+        allowedRoles: ['admin'],
+        icon: <Iconify icon="solar:file-bold-duotone" />,
+      },
+    ],
+  },
+  {
+    subheader: 'รายงาน',
+    items: [
+      {
+        title: 'รายงานรายได้',
+        path: paths.admin.revenue,
+        allowedRoles: ['admin'],
+        icon: <Iconify icon="solar:chart-square-outline" />,
       },
     ],
   },

@@ -11,6 +11,8 @@ const ROOTS = {
   AUTH: '/auth',
   AUTH_DEMO: '/auth-demo',
   DASHBOARD: '/dashboard',
+  ADMIN: '/admin',
+  MASTER: '/master',
 };
 
 // ----------------------------------------------------------------------
@@ -34,6 +36,24 @@ export const paths = {
   minimalStore: 'https://mui.com/store/items/minimal-dashboard/',
   freeUI: 'https://mui.com/store/items/minimal-dashboard-free/',
   figmaUrl: 'https://www.figma.com/design/WadcoP3CSejUDj7YZc87xj/%5BPreview%5D-Minimal-Web.v7.3.0',
+  admin: {
+    root: ROOTS.ADMIN,
+    users: `${ROOTS.ADMIN}/users`,
+    registrationRequests: `${ROOTS.ADMIN}/users/registration-requests`,
+    customers: `${ROOTS.ADMIN}/users/customers`,
+    spa: `${ROOTS.ADMIN}/spa`,
+    services: `${ROOTS.ADMIN}/spa/services`,
+    servicesQueue: `${ROOTS.ADMIN}/spa/services/queue`,
+    servicesWorking: `${ROOTS.ADMIN}/spa/services/working`,
+    staff: `${ROOTS.ADMIN}/spa/staff`,
+    availability: `${ROOTS.ADMIN}/spa/availability`,
+    promotions: `${ROOTS.ADMIN}/spa/promotions`,
+    revenue: `${ROOTS.ADMIN}/reports/revenue`,
+  },
+  master: {
+    root: ROOTS.MASTER,
+    category: `${ROOTS.MASTER}/service-categories`,
+  },
   product: {
     root: `/product`,
     checkout: `/product/checkout`,

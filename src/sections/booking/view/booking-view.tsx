@@ -2,100 +2,207 @@
 
 import type React from 'react';
 
-import { useMemo, useState } from 'react';
 import { useBoolean } from 'minimal-shared/hooks';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
+import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Drawer from '@mui/material/Drawer';
 import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
 import Divider from '@mui/material/Divider';
+import Stepper from '@mui/material/Stepper';
 import MenuItem from '@mui/material/MenuItem';
+import StepLabel from '@mui/material/StepLabel';
 import TextField from '@mui/material/TextField';
 import Container from '@mui/material/Container';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
 import InputAdornment from '@mui/material/InputAdornment';
+
+import { endpoints } from 'src/lib/axios';
+import { queryKeys } from 'src/api/query-keys';
+import { useAuthedQuery, useAuthedMutation } from 'src/api/use-authed-query';
 
 import { Iconify } from 'src/components/iconify';
 
 // ----------------------------------------------------------------------
 
-const timeSlots = ['10:00', '11:30', '13:00', '14:30', '16:00', '17:30'];
+type SpaService = {
+  id: string;
+  name: string;
+  duration: string;
+  durationMinutes: number;
+  price: number;
+};
 
-const services = ['นวดน้ำมันคชานัน', 'พิธีผิวใสสมุนไพร', 'แช่เท้าดอกบัวและประคบ'];
+type SpaStaff = {
+  id: string;
+  name: string;
+  specialty: string;
+};
 
-const staff = ['ดาว', 'น้ำ', 'เมย์'];
+type AvailabilityDay = {
+  id: string;
+  date: string;
+  label: string;
+  fullLabel: string;
+  isClosed: boolean;
+  openTime: string;
+  closeTime: string;
+  slotIntervalMinutes: number;
+  maxBookingsPerDay: number;
+  bookedCount: number;
+  remainingBookings: number;
+  note: string;
+  slots: string[];
+};
 
-type BookingStatus = 'confirmed' | 'pending' | 'completed' | 'cancelled';
+type BookingStatus = 'confirmed' | 'pending' | 'in_progress' | 'completed' | 'cancelled';
 
 type StatusFilter = 'all' | BookingStatus;
 
 type BookingItem = {
   id: string;
+  bookingNo: string;
+  serviceId: string;
   service: string;
+  duration: string;
+  price: number;
   date: string;
+  dateLabel: string;
   time: string;
+  staffId: string;
   staff: string;
+  customerName: string;
+  phone: string;
+  customerNote: string;
+  imageUrls: string[];
+  jobItems: string;
+  jobImageUrls: string[];
+  jobOpenedAt?: string;
   status: BookingStatus;
   note: string;
 };
 
-const bookingHistory: BookingItem[] = [
-  {
-    id: 'BK-240624-01',
-    service: 'นวดน้ำมันคชานัน',
-    date: '24 มิ.ย. 2026',
-    time: '14:30',
-    staff: 'ดาว',
-    status: 'confirmed',
-    note: 'ยืนยันแล้ว รอเข้ารับบริการ',
-  },
-  {
-    id: 'BK-300624-02',
-    service: 'พิธีผิวใสสมุนไพร',
-    date: '30 มิ.ย. 2026',
-    time: '11:30',
-    staff: 'น้ำ',
-    status: 'pending',
-    note: 'รอชำระเงินเพื่อยืนยันคิว',
-  },
-  {
-    id: 'BK-120626-03',
-    service: 'แช่เท้าดอกบัวและประคบ',
-    date: '12 มิ.ย. 2026',
-    time: '16:00',
-    staff: 'เมย์',
-    status: 'completed',
-    note: 'ใช้บริการแล้ว สามารถให้คะแนนได้',
-  },
-  {
-    id: 'BK-050626-04',
-    service: 'นวดน้ำมันคชานัน',
-    date: '5 มิ.ย. 2026',
-    time: '10:00',
-    staff: 'ดาว',
-    status: 'cancelled',
-    note: 'ยกเลิกตามคำขอของลูกค้า',
-  },
-];
+type BookingForm = {
+  serviceId: string;
+  date: string;
+  time: string;
+  staffId: string;
+  customerName: string;
+  phone: string;
+  customerNote: string;
+  imageUrls: string[];
+};
+
+type OpenJobForm = {
+  jobItems: string;
+  jobImageUrls: string[];
+};
+
+type BookingApiResponse = {
+  profile: {
+    displayName?: string;
+    phone?: string;
+  };
+  services: SpaService[];
+  staff: SpaStaff[];
+  availability: AvailabilityDay[];
+  bookings: Omit<BookingItem, 'dateLabel' | 'note'>[];
+};
+
+type BookingMutationResponse = {
+  booking: Omit<BookingItem, 'dateLabel' | 'note'>;
+};
 
 const statusTabs: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'ทั้งหมด' },
-  { value: 'confirmed', label: 'ยืนยันแล้ว' },
-  { value: 'pending', label: 'รอชำระเงิน' },
+  { value: 'pending', label: 'รอยืนยันคิว' },
+  { value: 'confirmed', label: 'ยืนยันคิวแล้ว' },
+  { value: 'in_progress', label: 'เปิดงานแล้ว' },
   { value: 'completed', label: 'ใช้บริการแล้ว' },
   { value: 'cancelled', label: 'ยกเลิก' },
 ];
 
 const statusMeta: Record<BookingStatus, { label: string; color: string; bgColor: string }> = {
-  confirmed: { label: 'ยืนยันแล้ว', color: '#1f6f4a', bgColor: '#dff4e7' },
-  pending: { label: 'รอชำระเงิน', color: '#8a5b26', bgColor: '#f5ddba' },
+  pending: { label: 'รอยืนยันคิว', color: '#8a5b26', bgColor: '#f5ddba' },
+  confirmed: { label: 'ยืนยันคิวแล้ว', color: '#1f6f4a', bgColor: '#dff4e7' },
+  in_progress: { label: 'เปิดงานแล้ว', color: '#6f4b1f', bgColor: '#f4eadf' },
   completed: { label: 'ใช้บริการแล้ว', color: '#315a8f', bgColor: '#dfeafa' },
   cancelled: { label: 'ยกเลิก', color: '#9b2f2f', bgColor: '#fde2df' },
 };
+
+const bookingSteps = ['บริการ', 'วันเวลา', 'ข้อมูล', 'ยืนยัน'];
+
+function formatDateLabel(date: Date) {
+  return new Intl.DateTimeFormat('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+function toDateValue(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function canOpenBookingJob(booking: Pick<BookingItem, 'date' | 'time' | 'status'>) {
+  if (booking.status !== 'confirmed') {
+    return false;
+  }
+
+  const bookingDateTime = new Date(`${booking.date}T${booking.time}:00`);
+
+  return Date.now() >= bookingDateTime.getTime();
+}
+
+function getBookingNote(status: BookingStatus) {
+  const notes: Record<BookingStatus, string> = {
+    pending: 'ส่งคำขอจองแล้ว รอพนักงานยืนยันคิว',
+    confirmed: 'ยืนยันคิวแล้ว เปิดงานได้เมื่อถึงวันและเวลาที่จอง',
+    in_progress: 'เปิดงานแล้ว ร้านกำลังตรวจสอบสินค้าที่ส่งมา',
+    completed: 'ปิดงานแล้ว สามารถให้คะแนนได้',
+    cancelled: 'ยกเลิกตามคำขอของลูกค้า',
+  };
+
+  return notes[status];
+}
+
+function getEmptyBookingForm(date: string, serviceId = '', staffId = ''): BookingForm {
+  return {
+    serviceId,
+    date,
+    time: '',
+    staffId,
+    customerName: '',
+    phone: '',
+    customerNote: '',
+    imageUrls: ['', '', '', ''],
+  };
+}
+
+function getEmptyOpenJobForm(): OpenJobForm {
+  return {
+    jobItems: '',
+    jobImageUrls: ['', '', '', ''],
+  };
+}
+
+function normalizeBooking(booking: Omit<BookingItem, 'dateLabel' | 'note'>): BookingItem {
+  return {
+    ...booking,
+    dateLabel: formatDateLabel(new Date(`${booking.date}T00:00:00`)),
+    note: getBookingNote(booking.status),
+  };
+}
 
 function Pill({
   children,
@@ -124,7 +231,233 @@ function Pill({
   );
 }
 
-function BookingDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+function BookingDrawer({
+  open,
+  form,
+  activeStep,
+  bookings,
+  services,
+  staffMembers,
+  editingBooking,
+  availableDates,
+  errorMessage,
+  onClose,
+  onBack,
+  onNext,
+  onSubmit,
+  onChange,
+}: {
+  open: boolean;
+  form: BookingForm;
+  activeStep: number;
+  bookings: BookingItem[];
+  services: SpaService[];
+  staffMembers: SpaStaff[];
+  editingBooking: BookingItem | null;
+  availableDates: AvailabilityDay[];
+  errorMessage: string | null;
+  onClose: () => void;
+  onBack: () => void;
+  onNext: () => void;
+  onSubmit: () => void;
+  onChange: (patch: Partial<BookingForm>) => void;
+}) {
+  const selectedService =
+    services.find((service) => service.id === form.serviceId) ?? services[0];
+  const selectedStaff = staffMembers.find((item) => item.id === form.staffId);
+  const selectedDate = availableDates.find((date) => date.date === form.date);
+  const selectedDateLabel = selectedDate?.fullLabel ?? form.date;
+
+  const isSlotBooked = useCallback(
+    (time: string) =>
+      bookings.some(
+        (booking) =>
+          booking.id !== editingBooking?.id &&
+          booking.date === form.date &&
+          booking.time === time &&
+          booking.staffId === form.staffId &&
+          booking.status !== 'cancelled'
+      ),
+    [bookings, editingBooking?.id, form.date, form.staffId]
+  );
+
+  const renderServiceStep = () => (
+    <Stack spacing={2}>
+      <Typography sx={{ fontWeight: 900 }}>เลือกประเภทงานทำความสะอาดสินค้า</Typography>
+      {services.map((service) => (
+        <Button
+          key={service.id}
+          fullWidth
+          variant={form.serviceId === service.id ? 'contained' : 'outlined'}
+          onClick={() => onChange({ serviceId: service.id })}
+          sx={{ minHeight: 58, justifyContent: 'space-between', borderRadius: 1 }}
+        >
+          <span>{service.name}</span>
+          <span>
+            {service.duration} / {service.price.toLocaleString()} บาท
+          </span>
+        </Button>
+      ))}
+    </Stack>
+  );
+
+  const renderDateTimeStep = () => (
+    <Stack spacing={2.5}>
+      <Box>
+        <Typography sx={{ mb: 1.2, fontWeight: 900 }}>วันที่</Typography>
+        <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5 }}>
+          {availableDates.map((date) => (
+            <Button
+              key={date.id}
+              disabled={date.isClosed || date.remainingBookings <= 0 || !date.slots.length}
+              variant={form.date === date.date ? 'contained' : 'outlined'}
+              onClick={() => onChange({ date: date.date, time: '' })}
+              sx={{ minWidth: 104, borderRadius: 1 }}
+            >
+              {date.label}
+            </Button>
+          ))}
+        </Stack>
+      </Box>
+
+      <Box>
+        <Typography sx={{ mb: 1.2, fontWeight: 900 }}>พนักงาน</Typography>
+        <Stack direction="row" spacing={1}>
+          {staffMembers.map((staffMember) => (
+            <Button
+              key={staffMember.id}
+              fullWidth
+              variant={form.staffId === staffMember.id ? 'contained' : 'outlined'}
+              onClick={() => onChange({ staffId: staffMember.id, time: '' })}
+              sx={{ height: 44, borderRadius: 1 }}
+            >
+              {staffMember.name}
+            </Button>
+          ))}
+        </Stack>
+      </Box>
+
+      <Box>
+        <Typography sx={{ mb: 1.2, fontWeight: 900 }}>เวลา</Typography>
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 1,
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          }}
+        >
+          {(selectedDate?.slots ?? []).map((time) => {
+            const booked = isSlotBooked(time);
+
+            return (
+              <Button
+                key={time}
+                disabled={booked}
+                variant={form.time === time ? 'contained' : 'outlined'}
+                onClick={() => onChange({ time })}
+                startIcon={<Iconify icon="solar:clock-circle-bold" />}
+                sx={{ height: 48, borderRadius: 1 }}
+              >
+                {booked ? `${time} เต็ม` : time}
+              </Button>
+            );
+          })}
+        </Box>
+        <Typography sx={{ mt: 1.2, color: '#7a6a58', fontSize: 13 }}>
+          เปิดรับ {selectedDate?.openTime ?? '-'}-{selectedDate?.closeTime ?? '-'} น. เหลือ{' '}
+          {selectedDate?.remainingBookings ?? 0}/{selectedDate?.maxBookingsPerDay ?? 0} คิว
+        </Typography>
+        {selectedDate?.note && (
+          <Typography sx={{ mt: 0.5, color: '#9b2f2f', fontSize: 13 }}>
+            {selectedDate.note}
+          </Typography>
+        )}
+        {selectedDate && !selectedDate.slots.length && (
+          <Alert severity="warning" sx={{ mt: 1.5 }}>
+            วันนี้ไม่มีช่วงเวลาว่างให้จอง
+          </Alert>
+        )}
+      </Box>
+    </Stack>
+  );
+
+  const renderCustomerStep = () => (
+    <Stack spacing={1.5}>
+      <Typography sx={{ fontWeight: 900 }}>ข้อมูลผู้จอง</Typography>
+      <TextField
+        fullWidth
+        label="ชื่อ-นามสกุล"
+        value={form.customerName}
+        onChange={(event) => onChange({ customerName: event.target.value })}
+      />
+      <TextField
+        fullWidth
+        label="เบอร์โทรศัพท์"
+        value={form.phone}
+        onChange={(event) => onChange({ phone: event.target.value })}
+      />
+      <TextField
+        fullWidth
+        multiline
+        minRows={3}
+        label="หมายเหตุถึงร้าน"
+        value={form.customerNote}
+        onChange={(event) => onChange({ customerNote: event.target.value })}
+      />
+      <Box>
+        <Typography sx={{ mb: 1, fontWeight: 900 }}>รูปภาพประกอบ (สูงสุด 4 รูป)</Typography>
+        <Stack spacing={1}>
+          {form.imageUrls.map((imageUrl, index) => (
+            <TextField
+              key={index}
+              fullWidth
+              label={`URL รูปภาพ ${index + 1}`}
+              value={imageUrl}
+              onChange={(event) => {
+                const nextImageUrls = [...form.imageUrls];
+
+                nextImageUrls[index] = event.target.value;
+                onChange({ imageUrls: nextImageUrls });
+              }}
+            />
+          ))}
+        </Stack>
+      </Box>
+    </Stack>
+  );
+
+  const renderConfirmStep = () => (
+    <Stack spacing={1.5}>
+      <Typography sx={{ fontWeight: 900 }}>ตรวจสอบนัดหมาย</Typography>
+      {[
+        ['บริการ', selectedService ? `${selectedService.name} (${selectedService.duration})` : '-'],
+        ['ราคา', selectedService ? `${selectedService.price.toLocaleString()} บาท` : '-'],
+        ['วันเวลา', `${selectedDateLabel} เวลา ${form.time || '-'}`],
+        ['พนักงาน', selectedStaff?.name ?? '-'],
+        ['ผู้จอง', form.customerName || '-'],
+        ['เบอร์โทร', form.phone || '-'],
+        ['หมายเหตุ', form.customerNote || '-'],
+        ['รูปภาพ', `${form.imageUrls.filter(Boolean).length}/4 รูป`],
+      ].map(([label, value]) => (
+        <Box
+          key={label}
+          sx={{
+            p: 1.5,
+            display: 'grid',
+            gap: 1,
+            borderRadius: 1,
+            bgcolor: '#fff',
+            gridTemplateColumns: '110px 1fr',
+            border: '1px solid #e4ebe6',
+          }}
+        >
+          <Typography sx={{ color: '#64706b', fontSize: 13, fontWeight: 800 }}>{label}</Typography>
+          <Typography sx={{ fontSize: 14 }}>{value}</Typography>
+        </Box>
+      ))}
+    </Stack>
+  );
+
   return (
     <Drawer
       anchor="right"
@@ -133,7 +466,7 @@ function BookingDrawer({ open, onClose }: { open: boolean; onClose: () => void }
       slotProps={{
         paper: {
           sx: {
-            width: { xs: 1, sm: 460 },
+            width: { xs: 1, sm: 520 },
             bgcolor: '#fbf7ef',
           },
         },
@@ -147,9 +480,11 @@ function BookingDrawer({ open, onClose }: { open: boolean; onClose: () => void }
           sx={{ px: 2.5, py: 2 }}
         >
           <Box>
-            <Typography sx={{ fontSize: 24, fontWeight: 950 }}>จองคิว</Typography>
+            <Typography sx={{ fontSize: 24, fontWeight: 950 }}>
+              {editingBooking ? 'เลื่อนนัดหมาย' : 'จองคิวสปาสินค้า'}
+            </Typography>
             <Typography sx={{ mt: 0.5, color: '#65716b', fontSize: 14 }}>
-              เลือกบริการ วัน เวลา และพนักงานที่ต้องการ
+              เลือกบริการ วัน เวลา และยืนยันคิวให้ครบในขั้นตอนเดียว
             </Typography>
           </Box>
           <IconButton onClick={onClose}>
@@ -159,124 +494,52 @@ function BookingDrawer({ open, onClose }: { open: boolean; onClose: () => void }
 
         <Divider />
 
-        <Stack spacing={2.5} sx={{ p: 2.5, overflowY: 'auto' }}>
-          <Box>
-            <Typography sx={{ mb: 1.2, fontWeight: 900 }}>บริการ</Typography>
-            <Stack spacing={1}>
-              {services.map((service, index) => (
-                <Button
-                  key={service}
-                  fullWidth
-                  variant={index === 0 ? 'contained' : 'outlined'}
-                  sx={{ height: 48, justifyContent: 'flex-start', borderRadius: 1 }}
-                >
-                  {service}
-                </Button>
-              ))}
-            </Stack>
-          </Box>
-
-          <Box>
-            <Typography sx={{ mb: 1.2, fontWeight: 900 }}>วันที่</Typography>
-            <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5 }}>
-              {['24 มิ.ย.', '25 มิ.ย.', '26 มิ.ย.', '27 มิ.ย.'].map((date, index) => (
-                <Button
-                  key={date}
-                  variant={index === 0 ? 'contained' : 'outlined'}
-                  sx={{ minWidth: 104, borderRadius: 1 }}
-                >
-                  {date}
-                </Button>
-              ))}
-            </Stack>
-          </Box>
-
-          <Box>
-            <Typography sx={{ mb: 1.2, fontWeight: 900 }}>เวลา</Typography>
-            <Box
-              sx={{
-                display: 'grid',
-                gap: 1,
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-              }}
-            >
-              {timeSlots.map((time, index) => (
-                <Button
-                  key={time}
-                  disabled={index === 2}
-                  variant={index === 3 ? 'contained' : 'outlined'}
-                  startIcon={<Iconify icon="solar:clock-circle-bold" />}
-                  sx={{ height: 48, borderRadius: 1 }}
-                >
-                  {time}
-                </Button>
-              ))}
-            </Box>
-            <Typography sx={{ mt: 1.2, color: '#7a6a58', fontSize: 13 }}>
-              เวลา 13:00 ถูกจองแล้ว ระบบจะไม่อนุญาตให้จองซ้ำในรอบเดียวกัน
-            </Typography>
-          </Box>
-
-          <Box>
-            <Typography sx={{ mb: 1.2, fontWeight: 900 }}>พนักงาน</Typography>
-            <Stack direction="row" spacing={1}>
-              {staff.map((name, index) => (
-                <Button
-                  key={name}
-                  fullWidth
-                  variant={index === 0 ? 'contained' : 'outlined'}
-                  sx={{ height: 44, borderRadius: 1 }}
-                >
-                  {name}
-                </Button>
-              ))}
-            </Stack>
-          </Box>
-
-          <Stack spacing={1.5}>
-            {['ชื่อ-นามสกุล', 'เบอร์โทรศัพท์'].map((label) => (
-              <Box
-                key={label}
-                sx={{
-                  px: 1.6,
-                  height: 50,
-                  display: 'flex',
-                  borderRadius: 1,
-                  color: '#7a8580',
-                  alignItems: 'center',
-                  bgcolor: '#fff',
-                  border: '1px solid #e4ebe6',
-                }}
-              >
-                {label}
-              </Box>
+        <Box sx={{ px: 2.5, pt: 2 }}>
+          <Stepper activeStep={activeStep} alternativeLabel>
+            {bookingSteps.map((label) => (
+              <StepLabel key={label}>{label}</StepLabel>
             ))}
-            <Box
-              sx={{
-                p: 1.6,
-                minHeight: 84,
-                borderRadius: 1,
-                color: '#7a8580',
-                bgcolor: '#fff',
-                border: '1px solid #e4ebe6',
-              }}
-            >
-              หมายเหตุถึงร้าน
-            </Box>
-          </Stack>
+          </Stepper>
+        </Box>
+
+        <Stack spacing={2.5} sx={{ p: 2.5, overflowY: 'auto' }}>
+          {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+          {activeStep === 0 && renderServiceStep()}
+          {activeStep === 1 && renderDateTimeStep()}
+          {activeStep === 2 && renderCustomerStep()}
+          {activeStep === 3 && renderConfirmStep()}
         </Stack>
 
-        <Box sx={{ p: 2.5, mt: 'auto', bgcolor: '#fff', borderTop: '1px solid #e4ebe6' }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ p: 2.5, mt: 'auto', bgcolor: '#fff', borderTop: '1px solid #e4ebe6' }}
+        >
+          <Button
+            fullWidth
+            size="large"
+            variant="outlined"
+            disabled={activeStep === 0}
+            onClick={onBack}
+            sx={{ height: 52, borderRadius: 999 }}
+          >
+            ย้อนกลับ
+          </Button>
           <Button
             fullWidth
             size="large"
             variant="contained"
-            startIcon={<Iconify icon="solar:check-circle-bold" />}
+            onClick={activeStep === bookingSteps.length - 1 ? onSubmit : onNext}
+            startIcon={
+              activeStep === bookingSteps.length - 1 ? (
+                <Iconify icon="solar:check-circle-bold" />
+              ) : undefined
+            }
             sx={{ height: 52, borderRadius: 999, bgcolor: '#101513' }}
           >
-            ยืนยันการจอง
+            {activeStep === bookingSteps.length - 1 ? 'ยืนยันการจอง' : 'ถัดไป'}
           </Button>
-        </Box>
+        </Stack>
       </Stack>
     </Drawer>
   );
@@ -284,9 +547,77 @@ function BookingDrawer({ open, onClose }: { open: boolean; onClose: () => void }
 
 export function BookingView() {
   const bookingDrawer = useBoolean();
+  const queryClient = useQueryClient();
+  const [bookings, setBookings] = useState<BookingItem[]>([]);
+  const [services, setServices] = useState<SpaService[]>([]);
+  const [staffMembers, setStaffMembers] = useState<SpaStaff[]>([]);
+  const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [serviceFilter, setServiceFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeStep, setActiveStep] = useState(0);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [loadingBookingData, setLoadingBookingData] = useState(true);
+  const [drawerError, setDrawerError] = useState<string | null>(null);
+  const [successBooking, setSuccessBooking] = useState<BookingItem | null>(null);
+  const [reviewBooking, setReviewBooking] = useState<BookingItem | null>(null);
+  const [openJobBooking, setOpenJobBooking] = useState<BookingItem | null>(null);
+  const [editingBooking, setEditingBooking] = useState<BookingItem | null>(null);
+  const [openJobError, setOpenJobError] = useState<string | null>(null);
+
+  const [bookingForm, setBookingForm] = useState<BookingForm>(() =>
+    getEmptyBookingForm(toDateValue(new Date()))
+  );
+  const [openJobForm, setOpenJobForm] = useState<OpenJobForm>(() => getEmptyOpenJobForm());
+  const bookingQuery = useAuthedQuery<BookingApiResponse>({
+    queryKey: queryKeys.booking,
+    url: endpoints.booking,
+  });
+  const createBooking = useAuthedMutation<BookingMutationResponse, Omit<BookingForm, never>>({
+    method: 'post',
+    url: endpoints.booking,
+  });
+  const updateBooking = useAuthedMutation<
+    BookingMutationResponse,
+    { bookingId: string } & Partial<BookingForm> &
+      Partial<OpenJobForm> & { status?: BookingStatus; reviewRating?: number; reviewComment?: string }
+  >({
+    method: 'patch',
+    url: endpoints.booking,
+  });
+
+  useEffect(() => {
+    setLoadingBookingData(bookingQuery.isLoading);
+
+    if (bookingQuery.error) {
+      setPageError(bookingQuery.error.message || 'โหลดข้อมูลการจองไม่สำเร็จ');
+      return;
+    }
+
+    if (!bookingQuery.data) {
+      return;
+    }
+
+    const data = bookingQuery.data;
+    const normalizedBookings = data.bookings.map(normalizeBooking);
+    const firstServiceId = data.services[0]?.id ?? '';
+    const firstStaffId = data.staff[0]?.id ?? '';
+    const firstDate = data.availability.find((day) => !day.isClosed && day.slots.length)?.date;
+
+    setPageError(null);
+    setServices(data.services);
+    setStaffMembers(data.staff);
+    setAvailability(data.availability);
+    setBookings(normalizedBookings);
+    setBookingForm((current) => ({
+      ...current,
+      serviceId: current.serviceId || firstServiceId,
+      staffId: current.staffId || firstStaffId,
+      date: firstDate ?? current.date,
+      customerName: current.customerName || data.profile.displayName || '',
+      phone: current.phone || data.profile.phone || '',
+    }));
+  }, [bookingQuery.data, bookingQuery.error, bookingQuery.isLoading]);
 
   const statusCounts = useMemo(
     () =>
@@ -295,30 +626,257 @@ export function BookingView() {
           ...counts,
           [tab.value]:
             tab.value === 'all'
-              ? bookingHistory.length
-              : bookingHistory.filter((booking) => booking.status === tab.value).length,
+              ? bookings.length
+              : bookings.filter((booking) => booking.status === tab.value).length,
         }),
         {} as Record<StatusFilter, number>
       ),
-    []
+    [bookings]
   );
 
   const filteredBookings = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
-    return bookingHistory.filter((booking) => {
+    return bookings.filter((booking) => {
       const matchStatus = statusFilter === 'all' || booking.status === statusFilter;
-      const matchService = serviceFilter === 'all' || booking.service === serviceFilter;
+      const matchService = serviceFilter === 'all' || booking.serviceId === serviceFilter;
       const matchSearch =
         !normalizedQuery ||
-        [booking.id, booking.service, booking.date, booking.time, booking.staff, booking.note]
+        [
+          booking.id,
+          booking.service,
+          booking.dateLabel,
+          booking.time,
+          booking.staff,
+          booking.note,
+          booking.customerName,
+          booking.phone,
+        ]
           .join(' ')
           .toLowerCase()
           .includes(normalizedQuery);
 
       return matchStatus && matchService && matchSearch;
     });
-  }, [searchQuery, serviceFilter, statusFilter]);
+  }, [bookings, searchQuery, serviceFilter, statusFilter]);
+
+  const handleChangeForm = useCallback((patch: Partial<BookingForm>) => {
+    setDrawerError(null);
+    setBookingForm((current) => ({ ...current, ...patch }));
+  }, []);
+
+  const handleOpenCreate = useCallback(() => {
+    setEditingBooking(null);
+    setActiveStep(0);
+    setDrawerError(null);
+    const firstDate = availability.find((day) => !day.isClosed && day.slots.length)?.date ?? '';
+    setBookingForm((current) => ({
+      ...getEmptyBookingForm(firstDate, services[0]?.id ?? '', staffMembers[0]?.id ?? ''),
+      customerName: current.customerName,
+      phone: current.phone,
+    }));
+    bookingDrawer.onTrue();
+  }, [availability, bookingDrawer, services, staffMembers]);
+
+  const handleOpenReschedule = useCallback(
+    (booking: BookingItem) => {
+      setEditingBooking(booking);
+      setActiveStep(1);
+      setDrawerError(null);
+      setBookingForm({
+        serviceId: booking.serviceId,
+        date: booking.date,
+        time: booking.time,
+        staffId: booking.staffId,
+        customerName: booking.customerName,
+        phone: booking.phone,
+        customerNote: booking.customerNote,
+        imageUrls: [...booking.imageUrls, '', '', '', ''].slice(0, 4),
+      });
+      bookingDrawer.onTrue();
+    },
+    [bookingDrawer]
+  );
+
+  const validateStep = useCallback(() => {
+    if (activeStep === 0 && !bookingForm.serviceId) {
+      setDrawerError('ยังไม่มีบริการให้เลือก');
+      return false;
+    }
+
+    if (activeStep === 1 && !bookingForm.staffId) {
+      setDrawerError('ยังไม่มีพนักงานให้เลือก');
+      return false;
+    }
+
+    if (activeStep === 1 && !bookingForm.time) {
+      setDrawerError('กรุณาเลือกเวลาที่ต้องการจอง');
+      return false;
+    }
+
+    if (activeStep === 2) {
+      if (!bookingForm.customerName.trim()) {
+        setDrawerError('กรุณากรอกชื่อผู้จอง');
+        return false;
+      }
+
+      if (!bookingForm.phone.trim()) {
+        setDrawerError('กรุณากรอกเบอร์โทรศัพท์');
+        return false;
+      }
+    }
+
+    setDrawerError(null);
+    return true;
+  }, [
+    activeStep,
+    bookingForm.customerName,
+    bookingForm.phone,
+    bookingForm.serviceId,
+    bookingForm.staffId,
+    bookingForm.time,
+  ]);
+
+  const handleNext = useCallback(() => {
+    if (!validateStep()) {
+      return;
+    }
+
+    setActiveStep((current) => Math.min(current + 1, bookingSteps.length - 1));
+  }, [validateStep]);
+
+  const handleBack = useCallback(() => {
+    setDrawerError(null);
+    setActiveStep((current) => Math.max(current - 1, 0));
+  }, []);
+
+  const handleSubmitBooking = useCallback(async () => {
+    const duplicateBooking = bookings.some(
+      (booking) =>
+        booking.id !== editingBooking?.id &&
+        booking.date === bookingForm.date &&
+        booking.time === bookingForm.time &&
+        booking.staffId === bookingForm.staffId &&
+        booking.status !== 'cancelled'
+    );
+
+    if (duplicateBooking) {
+      setDrawerError('เวลานี้มีผู้จองแล้ว กรุณาเลือกเวลาอื่น');
+      return;
+    }
+
+    try {
+      const payload = {
+        serviceId: bookingForm.serviceId,
+        staffId: bookingForm.staffId,
+        date: bookingForm.date,
+        time: bookingForm.time,
+        customerName: bookingForm.customerName,
+        phone: bookingForm.phone,
+        customerNote: bookingForm.customerNote,
+        imageUrls: bookingForm.imageUrls.filter(Boolean).slice(0, 4),
+      };
+
+      const data = editingBooking
+        ? await updateBooking.mutateAsync({ bookingId: editingBooking.id, ...payload })
+        : await createBooking.mutateAsync(payload);
+
+      const nextBooking = normalizeBooking(data.booking);
+
+      setBookings((current) =>
+        editingBooking
+          ? current.map((booking) => (booking.id === editingBooking.id ? nextBooking : booking))
+          : [nextBooking, ...current]
+      );
+      setSuccessBooking(nextBooking);
+      setEditingBooking(null);
+      bookingDrawer.onFalse();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.booking });
+    } catch (error) {
+      setDrawerError(error instanceof Error ? error.message : 'บันทึกนัดหมายไม่สำเร็จ');
+    }
+  }, [bookingDrawer, bookingForm, bookings, createBooking, editingBooking, queryClient, updateBooking]);
+
+  const handleCancelBooking = useCallback(
+    async (bookingId: string) => {
+      try {
+        const data = await updateBooking.mutateAsync({ bookingId, status: 'cancelled' });
+        const nextBooking = normalizeBooking(data.booking);
+
+        setBookings((current) =>
+          current.map((booking) => (booking.id === bookingId ? nextBooking : booking))
+        );
+        await queryClient.invalidateQueries({ queryKey: queryKeys.booking });
+      } catch (error) {
+        setPageError(error instanceof Error ? error.message : 'ยกเลิกนัดหมายไม่สำเร็จ');
+      }
+    },
+    [queryClient, updateBooking]
+  );
+
+  const handleOpenJobDialog = useCallback((booking: BookingItem) => {
+    setOpenJobBooking(booking);
+    setOpenJobError(null);
+    setOpenJobForm({
+      jobItems: booking.jobItems || '',
+      jobImageUrls: [...booking.jobImageUrls, '', '', '', ''].slice(0, 4),
+    });
+  }, []);
+
+  const handleSubmitOpenJob = useCallback(async () => {
+    if (!openJobBooking) {
+      return;
+    }
+
+    if (!openJobForm.jobItems.trim()) {
+      setOpenJobError('กรุณาระบุสินค้าที่จะทำความสะอาด');
+      return;
+    }
+
+    try {
+      const data = await updateBooking.mutateAsync({
+        bookingId: openJobBooking.id,
+        status: 'in_progress',
+        jobItems: openJobForm.jobItems,
+        jobImageUrls: openJobForm.jobImageUrls.filter(Boolean).slice(0, 4),
+      });
+      const nextBooking = normalizeBooking(data.booking);
+
+      setBookings((current) =>
+        current.map((booking) => (booking.id === openJobBooking.id ? nextBooking : booking))
+      );
+      setOpenJobBooking(null);
+      setOpenJobError(null);
+      setOpenJobForm(getEmptyOpenJobForm());
+      await queryClient.invalidateQueries({ queryKey: queryKeys.booking });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.admin.spaBookings('working') });
+    } catch (error) {
+      setOpenJobError(error instanceof Error ? error.message : 'เปิดงานไม่สำเร็จ');
+    }
+  }, [openJobBooking, openJobForm, queryClient, updateBooking]);
+
+  const handleCompleteReview = useCallback(async () => {
+    if (!reviewBooking) {
+      return;
+    }
+
+    try {
+      const data = await updateBooking.mutateAsync({
+        bookingId: reviewBooking.id,
+        reviewRating: 5,
+        reviewComment: '',
+      });
+      const nextBooking = normalizeBooking(data.booking);
+
+      setBookings((current) =>
+        current.map((booking) => (booking.id === reviewBooking.id ? nextBooking : booking))
+      );
+      setReviewBooking(null);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.booking });
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'บันทึกรีวิวไม่สำเร็จ');
+    }
+  }, [queryClient, reviewBooking, updateBooking]);
 
   return (
     <Box
@@ -359,14 +917,15 @@ export function BookingView() {
                 นัดหมายของฉัน
               </Typography>
               <Typography sx={{ color: '#313936', maxWidth: 600, fontSize: 17, lineHeight: 1.8 }}>
-                ดูสถานะนัดหมายล่าสุด เลื่อนนัด ยกเลิก หรือเปิด drawer เพื่อจองคิวใหม่
+                จองคิวทำความสะอาดสินค้า เลือกวันเวลา ตรวจสอบคิวว่าง และจัดการนัดหมายได้ครบในหน้าเดียว
               </Typography>
             </Stack>
 
             <Button
               size="large"
               variant="contained"
-              onClick={bookingDrawer.onTrue}
+              onClick={handleOpenCreate}
+              disabled={loadingBookingData || !services.length || !staffMembers.length}
               startIcon={<Iconify icon="solar:calendar-date-bold" />}
               sx={{ height: 52, borderRadius: 999, bgcolor: '#101513', px: 3 }}
             >
@@ -419,7 +978,7 @@ export function BookingView() {
                   แสดงผล
                 </Typography>
                 <Typography sx={{ fontSize: 24, fontWeight: 950 }}>
-                  {filteredBookings.length}/{bookingHistory.length}
+                  {filteredBookings.length}/{bookings.length}
                 </Typography>
               </Box>
             </Stack>
@@ -446,6 +1005,12 @@ export function BookingView() {
             </Tabs>
 
             <Divider />
+
+            {pageError && (
+              <Alert severity="error" sx={{ mx: { xs: 2, md: 3 }, mt: 2 }}>
+                {pageError}
+              </Alert>
+            )}
 
             <Box
               sx={{
@@ -480,8 +1045,8 @@ export function BookingView() {
               >
                 <MenuItem value="all">ทุกบริการ</MenuItem>
                 {services.map((service) => (
-                  <MenuItem key={service} value={service}>
-                    {service}
+                  <MenuItem key={service.id} value={service.id}>
+                    {service.name}
                   </MenuItem>
                 ))}
               </TextField>
@@ -490,6 +1055,8 @@ export function BookingView() {
             <Stack spacing={1.5} sx={{ px: { xs: 2, md: 3 }, pb: { xs: 2, md: 3 } }}>
               {filteredBookings.map((booking) => {
                 const meta = statusMeta[booking.status];
+                const canManage = ['pending', 'confirmed'].includes(booking.status);
+                const canOpenJob = canOpenBookingJob(booking);
 
                 return (
                   <Box
@@ -532,11 +1099,11 @@ export function BookingView() {
                             </Pill>
                           </Stack>
                           <Typography sx={{ mt: 0.5, color: '#64706b', fontSize: 14 }}>
-                            {booking.id} • {booking.date} เวลา {booking.time} • พนักงาน{' '}
+                            {booking.id} • {booking.dateLabel} เวลา {booking.time} • พนักงาน{' '}
                             {booking.staff}
                           </Typography>
                           <Typography sx={{ mt: 0.6, color: '#7a6a58', fontSize: 13 }}>
-                            {booking.note}
+                            {booking.duration} • {booking.price.toLocaleString()} บาท • {booking.note}
                           </Typography>
                         </Box>
                       </Stack>
@@ -545,6 +1112,8 @@ export function BookingView() {
                         <Button
                           size="small"
                           variant="outlined"
+                          disabled={!canManage}
+                          onClick={() => handleOpenReschedule(booking)}
                           startIcon={<Iconify icon="solar:calendar-date-bold" />}
                           sx={{ borderRadius: 999 }}
                         >
@@ -552,8 +1121,20 @@ export function BookingView() {
                         </Button>
                         <Button
                           size="small"
+                          variant="contained"
+                          disabled={!canOpenJob}
+                          onClick={() => handleOpenJobDialog(booking)}
+                          startIcon={<Iconify icon="solar:play-circle-bold" />}
+                          sx={{ borderRadius: 999, bgcolor: '#101513' }}
+                        >
+                          เปิดงาน
+                        </Button>
+                        <Button
+                          size="small"
                           color="error"
                           variant="outlined"
+                          disabled={!canManage}
+                          onClick={() => handleCancelBooking(booking.id)}
                           startIcon={<Iconify icon="solar:trash-bin-trash-bold" />}
                           sx={{ borderRadius: 999 }}
                         >
@@ -562,6 +1143,8 @@ export function BookingView() {
                         <Button
                           size="small"
                           variant="contained"
+                          disabled={booking.status !== 'completed'}
+                          onClick={() => setReviewBooking(booking)}
                           startIcon={<Iconify icon="solar:cup-star-bold" />}
                           sx={{ borderRadius: 999 }}
                         >
@@ -573,7 +1156,23 @@ export function BookingView() {
                 );
               })}
 
-              {!filteredBookings.length && (
+              {loadingBookingData && (
+                <Box
+                  sx={{
+                    py: 6,
+                    px: 2,
+                    borderRadius: 1,
+                    textAlign: 'center',
+                    bgcolor: '#fbfdfb',
+                    border: '1px dashed rgba(44, 49, 45, 0.2)',
+                  }}
+                >
+                  <Iconify width={42} icon="solar:calendar-date-bold" />
+                  <Typography sx={{ mt: 1, fontWeight: 900 }}>กำลังโหลดนัดหมาย</Typography>
+                </Box>
+              )}
+
+              {!loadingBookingData && !filteredBookings.length && (
                 <Box
                   sx={{
                     py: 6,
@@ -596,7 +1195,149 @@ export function BookingView() {
         </Container>
       </Box>
 
-      <BookingDrawer open={bookingDrawer.value} onClose={bookingDrawer.onFalse} />
+      <BookingDrawer
+        open={bookingDrawer.value}
+      form={bookingForm}
+      activeStep={activeStep}
+      bookings={bookings}
+      services={services}
+      staffMembers={staffMembers}
+      editingBooking={editingBooking}
+      availableDates={availability}
+        errorMessage={drawerError}
+        onClose={bookingDrawer.onFalse}
+        onBack={handleBack}
+        onNext={handleNext}
+        onSubmit={handleSubmitBooking}
+        onChange={handleChangeForm}
+      />
+
+      <Dialog
+        fullWidth
+        maxWidth="sm"
+        open={!!openJobBooking}
+        onClose={() => setOpenJobBooking(null)}
+      >
+        <DialogTitle>เปิดงานทำความสะอาดสินค้า</DialogTitle>
+        <DialogContent>
+          {openJobBooking && (
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <Alert severity="info">
+                ส่งรายละเอียดสินค้าที่จะทำความสะอาดให้ร้านตรวจสอบก่อนเริ่มงาน
+              </Alert>
+              {openJobError && <Alert severity="error">{openJobError}</Alert>}
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: 1,
+                  bgcolor: '#f8f2e9',
+                  border: '1px solid rgba(44, 49, 45, 0.08)',
+                }}
+              >
+                <Typography sx={{ fontWeight: 900 }}>{openJobBooking.service}</Typography>
+                <Typography sx={{ mt: 0.5, color: '#64706b', fontSize: 14 }}>
+                  {openJobBooking.bookingNo} • {openJobBooking.dateLabel} เวลา{' '}
+                  {openJobBooking.time}
+                </Typography>
+              </Box>
+              <TextField
+                fullWidth
+                multiline
+                minRows={4}
+                label="สินค้าที่จะทำความสะอาด"
+                placeholder="เช่น ชื่อสินค้า รุ่น วัสดุ คราบหรือจุดที่ต้องดูแลเป็นพิเศษ"
+                value={openJobForm.jobItems}
+                onChange={(event) => {
+                  setOpenJobError(null);
+                  setOpenJobForm((current) => ({ ...current, jobItems: event.target.value }));
+                }}
+              />
+              <Box>
+                <Typography sx={{ mb: 1, fontWeight: 900 }}>รูปภาพสินค้า (สูงสุด 4 รูป)</Typography>
+                <Stack spacing={1}>
+                  {openJobForm.jobImageUrls.map((imageUrl, index) => (
+                    <TextField
+                      key={index}
+                      fullWidth
+                      label={`URL รูปภาพสินค้า ${index + 1}`}
+                      value={imageUrl}
+                      onChange={(event) => {
+                        const nextImageUrls = [...openJobForm.jobImageUrls];
+
+                        nextImageUrls[index] = event.target.value;
+                        setOpenJobForm((current) => ({
+                          ...current,
+                          jobImageUrls: nextImageUrls,
+                        }));
+                      }}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button variant="outlined" onClick={() => setOpenJobBooking(null)}>
+            ยกเลิก
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmitOpenJob}
+            startIcon={<Iconify icon="solar:play-circle-bold" />}
+          >
+            เปิดงาน
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog fullWidth maxWidth="xs" open={!!successBooking} onClose={() => setSuccessBooking(null)}>
+        <DialogTitle>จองคิวสำเร็จ</DialogTitle>
+        <DialogContent>
+          {successBooking && (
+            <Stack spacing={1.2}>
+              <Alert severity="success">ระบบบันทึกนัดหมายเรียบร้อยแล้ว</Alert>
+              <Typography sx={{ fontWeight: 900 }}>{successBooking.service}</Typography>
+              <Typography sx={{ color: '#64706b' }}>
+                {successBooking.id} • {successBooking.dateLabel} เวลา {successBooking.time}
+              </Typography>
+              <Typography sx={{ color: '#64706b' }}>พนักงาน {successBooking.staff}</Typography>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setSuccessBooking(null)}>
+            ปิด
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog fullWidth maxWidth="xs" open={!!reviewBooking} onClose={() => setReviewBooking(null)}>
+        <DialogTitle>รีวิวบริการ</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ pt: 1 }}>
+            <Typography sx={{ color: '#64706b' }}>
+              ให้คะแนนและบันทึกการใช้บริการสำหรับ {reviewBooking?.service}
+            </Typography>
+            <TextField select label="คะแนน" defaultValue="5">
+              {[5, 4, 3, 2, 1].map((score) => (
+                <MenuItem key={score} value={score}>
+                  {score} ดาว
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField multiline minRows={3} label="ความคิดเห็น" />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="outlined" onClick={() => setReviewBooking(null)}>
+            ยกเลิก
+          </Button>
+          <Button variant="contained" onClick={handleCompleteReview}>
+            บันทึกรีวิว
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

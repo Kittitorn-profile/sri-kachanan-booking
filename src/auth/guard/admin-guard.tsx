@@ -21,7 +21,7 @@ function AdminPermissionGuard({ children }: AdminGuardProps) {
     return <SplashScreen />;
   }
 
-  if (user?.role !== 'admin') {
+  if (!['admin', 'employee'].includes(user?.role)) {
     router.replace('/');
     return <SplashScreen />;
   }

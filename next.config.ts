@@ -23,6 +23,55 @@ const nextConfig: NextConfig = {
   env: {
     BUILD_STATIC_EXPORT: JSON.stringify(isStaticExport),
   },
+  async redirects() {
+    return [
+      {
+        source: '/admin/registration-requests',
+        destination: '/admin/users/registration-requests',
+        permanent: false,
+      },
+      {
+        source: '/admin/customers',
+        destination: '/admin/users/customers',
+        permanent: false,
+      },
+      {
+        source: '/admin/services',
+        destination: '/admin/spa/services/queue',
+        permanent: false,
+      },
+      {
+        source: '/admin/services/queue',
+        destination: '/admin/spa/services/queue',
+        permanent: false,
+      },
+      {
+        source: '/admin/services/working',
+        destination: '/admin/spa/services/working',
+        permanent: false,
+      },
+      {
+        source: '/admin/staff',
+        destination: '/admin/spa/staff',
+        permanent: false,
+      },
+      {
+        source: '/admin/availability',
+        destination: '/admin/spa/availability',
+        permanent: false,
+      },
+      {
+        source: '/admin/revenue',
+        destination: '/admin/reports/revenue',
+        permanent: false,
+      },
+      {
+        source: '/master/category',
+        destination: '/master/service-categories',
+        permanent: false,
+      },
+    ];
+  },
   // Without --turbopack (next dev)
   webpack(config, { isServer }) {
     if (!isServer) {

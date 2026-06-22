@@ -16,7 +16,7 @@ Important columns:
 - `email`
 - `display_name`
 - `phone`
-- `role`: `admin` or `user`
+- `role`: `admin`, `employee`, or `user`
 - `approval_status`: `pending`, `approved`, or `rejected`
 - `requested_at`
 - `approved_at`
@@ -79,6 +79,36 @@ user_metadata.account_source = web
 ```
 
 So frontend-registered users remain normal users and wait for approval.
+
+## Employee Accounts
+
+Admins create employee login accounts from:
+
+```txt
+/admin/staff
+```
+
+The admin staff form calls:
+
+```txt
+POST /api/admin/users
+```
+
+Employee accounts are created in Supabase Auth with:
+
+```txt
+role = employee
+approval_status = approved   -- active
+```
+
+or:
+
+```txt
+role = employee
+approval_status = rejected   -- inactive
+```
+
+Employees use the same sign-in page as users. Login is allowed when the profile is `approved`.
 
 If a Supabase-created admin still cannot log in, check both conditions:
 

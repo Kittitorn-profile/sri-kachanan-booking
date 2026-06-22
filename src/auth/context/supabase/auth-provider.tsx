@@ -24,14 +24,20 @@ type Props = {
 
 type UserProfileAuth = {
   display_name: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'employee' | 'user';
   approval_status: 'pending' | 'approved' | 'rejected';
 };
 
 function getSessionProfile(user: NonNullable<AuthState['user']>['user']): UserProfileAuth {
   const metadata = user.user_metadata ?? {};
   const isWebRegistered = metadata.account_source === 'web' || Boolean(metadata.requested_at);
-  const role = (metadata.role as UserProfileAuth['role'] | undefined) ?? (isWebRegistered ? 'user' : 'admin');
+  const metadataRole = metadata.role as UserProfileAuth['role'] | undefined;
+  const role =
+    metadataRole && ['admin', 'employee', 'user'].includes(metadataRole)
+      ? metadataRole
+      : isWebRegistered
+        ? 'user'
+        : 'admin';
 
   return {
     display_name:
@@ -42,8 +48,11 @@ function getSessionProfile(user: NonNullable<AuthState['user']>['user']): UserPr
     approval_status:
       role === 'admin'
         ? 'approved'
-        : ((metadata.approval_status as UserProfileAuth['approval_status'] | undefined) ??
-          'pending'),
+        : role === 'employee'
+          ? ((metadata.approval_status as UserProfileAuth['approval_status'] | undefined) ??
+            'approved')
+          : ((metadata.approval_status as UserProfileAuth['approval_status'] | undefined) ??
+            'pending'),
   };
 }
 

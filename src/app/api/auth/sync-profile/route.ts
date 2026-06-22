@@ -6,7 +6,7 @@ import { supabaseAdmin } from 'src/lib/supabase-admin';
 
 export const runtime = 'nodejs';
 
-type AppRole = 'admin' | 'user';
+type AppRole = 'admin' | 'employee' | 'user';
 type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 export async function POST(request: Request) {
@@ -24,11 +24,19 @@ export async function POST(request: Request) {
 
   const metadata = data.user.user_metadata ?? {};
   const isWebRegistered = metadata.account_source === 'web' || Boolean(metadata.requested_at);
-  const role: AppRole = isWebRegistered ? 'user' : 'admin';
+  const metadataRole = metadata.role as AppRole | undefined;
+  const role: AppRole =
+    metadataRole && ['admin', 'employee', 'user'].includes(metadataRole)
+      ? metadataRole
+      : isWebRegistered
+        ? 'user'
+        : 'admin';
   const approvalStatus: ApprovalStatus =
     role === 'admin'
       ? 'approved'
-      : ((metadata.approval_status as ApprovalStatus | undefined) ?? 'pending');
+      : role === 'employee'
+        ? ((metadata.approval_status as ApprovalStatus | undefined) ?? 'approved')
+        : ((metadata.approval_status as ApprovalStatus | undefined) ?? 'pending');
   const displayName =
     (metadata.display_name as string | undefined) || data.user.email || (role === 'admin' ? 'Super Admin' : '');
 

@@ -76,7 +76,13 @@ export const endpoints = {
   },
   admin: {
     users: '/api/admin/users',
+    customers: '/api/admin/customers',
+    spaBookings: '/api/admin/spa-bookings',
+    spaCategories: '/api/admin/spa-categories',
+    spaPromotions: '/api/admin/spa-promotions',
+    bookingAvailability: '/api/admin/booking-availability',
   },
+  booking: '/api/booking',
   mail: {
     list: '/api/mail/list',
     details: '/api/mail/details',

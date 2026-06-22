@@ -41,3 +41,35 @@ export async function requireAdmin(request: Request): Promise<ApiAuthResult> {
 
   return { user: data.user };
 }
+
+export async function requireBackOffice(request: Request): Promise<ApiAuthResult> {
+  const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+  if (!token) {
+    return {
+      response: NextResponse.json({ message: 'Missing authorization token' }, { status: 401 }),
+    };
+  }
+
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+
+  if (error || !data.user) {
+    return {
+      response: NextResponse.json({ message: 'Invalid authorization token' }, { status: 401 }),
+    };
+  }
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('user_profiles')
+    .select('role')
+    .eq('id', data.user.id)
+    .single();
+
+  if (profileError || !['admin', 'employee'].includes(profile?.role)) {
+    return {
+      response: NextResponse.json({ message: 'Back office permission required' }, { status: 403 }),
+    };
+  }
+
+  return { user: data.user };
+}

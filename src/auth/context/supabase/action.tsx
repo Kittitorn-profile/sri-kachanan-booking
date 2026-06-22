@@ -45,7 +45,7 @@ export type UpdatePasswordParams = {
 };
 
 type UserProfileAuth = {
-  role: 'admin' | 'user';
+  role: 'admin' | 'employee' | 'user';
   approval_status: 'pending' | 'approved' | 'rejected';
 };
 

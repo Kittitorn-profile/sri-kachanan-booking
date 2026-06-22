@@ -10,7 +10,7 @@ begin
     where n.nspname = 'public'
       and t.typname = 'app_role'
   ) then
-    create type public.app_role as enum ('admin', 'user');
+    create type public.app_role as enum ('admin', 'employee', 'user');
   end if;
 end;
 $$;
@@ -74,12 +74,19 @@ declare
   is_web_registered boolean :=
     new.raw_user_meta_data ->> 'account_source' = 'web'
     or new.raw_user_meta_data ? 'requested_at';
+  metadata_role text := new.raw_user_meta_data ->> 'role';
   next_role public.app_role := case
+    when metadata_role in ('admin', 'employee', 'user')
+      then metadata_role::public.app_role
     when is_web_registered then 'user'::public.app_role
     else 'admin'::public.app_role
   end;
   next_status public.approval_status := case
-    when not is_web_registered then 'approved'::public.approval_status
+    when next_role in ('admin'::public.app_role, 'employee'::public.app_role)
+      then coalesce(
+        (new.raw_user_meta_data ->> 'approval_status')::public.approval_status,
+        'approved'::public.approval_status
+      )
     else coalesce(
       (new.raw_user_meta_data ->> 'approval_status')::public.approval_status,
       'pending'::public.approval_status
@@ -187,12 +194,19 @@ select
   coalesce(auth_user.email, ''),
   coalesce(nullif(auth_user.raw_user_meta_data ->> 'display_name', ''), auth_user.email, 'Super Admin'),
   case
+    when auth_user.raw_user_meta_data ->> 'role' in ('admin', 'employee', 'user')
+      then (auth_user.raw_user_meta_data ->> 'role')::public.app_role
     when auth_user.raw_user_meta_data ->> 'account_source' = 'web'
       or auth_user.raw_user_meta_data ? 'requested_at'
       then 'user'::public.app_role
     else 'admin'::public.app_role
   end,
   case
+    when auth_user.raw_user_meta_data ->> 'role' in ('admin', 'employee')
+      then coalesce(
+        (auth_user.raw_user_meta_data ->> 'approval_status')::public.approval_status,
+        'approved'::public.approval_status
+      )
     when auth_user.raw_user_meta_data ->> 'account_source' = 'web'
       or auth_user.raw_user_meta_data ? 'requested_at'
       then coalesce(
@@ -202,6 +216,8 @@ select
     else 'approved'::public.approval_status
   end,
   case
+    when auth_user.raw_user_meta_data ->> 'role' in ('admin', 'employee')
+      then now()
     when auth_user.raw_user_meta_data ->> 'account_source' = 'web'
       or auth_user.raw_user_meta_data ? 'requested_at'
       then null

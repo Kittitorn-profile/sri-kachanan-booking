@@ -1,10 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
-import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
@@ -12,250 +9,40 @@ import Typography from '@mui/material/Typography';
 import CardHeader from '@mui/material/CardHeader';
 import CardContent from '@mui/material/CardContent';
 
-import { supabase } from 'src/lib/supabase';
-import axios, { endpoints } from 'src/lib/axios';
+import { paths } from 'src/routes/paths';
+
 import { DashboardContent } from 'src/layouts/dashboard';
 
 import { Iconify } from 'src/components/iconify';
 
+import {
+  adminStats,
+  adminBookings,
+  adminCustomers,
+  adminPromotions,
+} from 'src/sections/admin/data/admin-data';
+
+import { AdminTable, AdminStatusPill, AdminPageHeading } from '../components';
+
 // ----------------------------------------------------------------------
 
-const stats = [
-  { label: 'ยอดจองวันนี้', value: '18', icon: 'solar:calendar-date-bold', color: '#2f7d54' },
-  { label: 'รายได้เดือนนี้', value: '142K', icon: 'solar:wad-of-money-bold', color: '#8a5b26' },
-  {
-    label: 'ลูกค้าใหม่',
-    value: '36',
-    icon: 'solar:users-group-rounded-bold-duotone',
-    color: '#3d61a8',
-  },
-  { label: 'คิวว่าง', value: '9', icon: 'solar:clock-circle-bold', color: '#8c4f9f' },
-] as const;
-
-const bookings = [
-  ['10:00', 'คุณมินตรา', 'นวดน้ำมันคชานัน', 'พนักงาน: ดาว', 'ยืนยันแล้ว'],
-  ['11:30', 'คุณอร', 'พิธีผิวใสสมุนไพร', 'พนักงาน: น้ำ', 'รอชำระเงิน'],
-  ['14:30', 'คุณภาคิน', 'แช่เท้าดอกบัวและประคบ', 'พนักงาน: เมย์', 'ยืนยันแล้ว'],
-  ['16:00', 'คุณกานต์', 'นวดน้ำมันคชานัน', 'พนักงาน: ดาว', 'เลื่อนนัด'],
-];
-
-const services = [
-  ['นวดน้ำมันคชานัน', '90 นาที', '2,400 บาท', 'เปิดขาย'],
-  ['พิธีผิวใสสมุนไพร', '75 นาที', '1,900 บาท', 'เปิดขาย'],
-  ['แช่เท้าดอกบัวและประคบ', '60 นาที', '1,500 บาท', 'เปิดขาย'],
-];
-
-const staff = [
-  ['ดาว', 'นวดน้ำมัน', '5 คิววันนี้'],
-  ['น้ำ', 'ดูแลผิว', '4 คิววันนี้'],
-  ['เมย์', 'ประคบสมุนไพร', '3 คิววันนี้'],
-];
-
-const customers = [
-  ['คุณมินตรา', 'ลูกค้าประจำ', '12 ครั้ง', 'คูปองวันเกิด'],
-  ['คุณอร', 'สมาชิกใหม่', '2 ครั้ง', 'ติดตามชำระเงิน'],
-  ['คุณภาคิน', 'ลูกค้าประจำ', '8 ครั้ง', 'ชอบรอบบ่าย'],
-];
-
-type RegistrationRequest = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  requestedAt: string;
-};
-
-function StatusPill({ children }: { children: React.ReactNode }) {
-  return (
-    <Box
-      sx={{
-        px: 1,
-        py: 0.5,
-        width: 'fit-content',
-        borderRadius: 999,
-        typography: 'caption',
-        fontWeight: 700,
-        color: 'success.darker',
-        bgcolor: 'success.lighter',
-      }}
-    >
-      {children}
-    </Box>
-  );
-}
-
-function AdminTable({
-  title,
-  id,
-  rows,
-  columns,
-}: {
-  title: string;
-  id: string;
-  rows: string[][];
-  columns: string[];
-}) {
-  return (
-    <Card id={id}>
-      <CardHeader
-        title={title}
-        action={
-          <Button size="small" variant="outlined" startIcon={<Iconify icon="solar:pen-bold" />}>
-            จัดการ
-          </Button>
-        }
-      />
-      <CardContent>
-        <Box
-          sx={{
-            mb: 1,
-            display: { xs: 'none', md: 'grid' },
-            gap: 2,
-            gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
-          }}
-        >
-          {columns.map((column) => (
-            <Typography key={column} variant="caption" sx={{ color: 'text.secondary' }}>
-              {column}
-            </Typography>
-          ))}
-        </Box>
-        <Stack divider={<Divider flexItem />} spacing={0}>
-          {rows.map((row) => (
-            <Box
-              key={row.join('-')}
-              sx={{
-                py: 1.5,
-                display: 'grid',
-                gap: { xs: 0.75, md: 2 },
-                gridTemplateColumns: { xs: '1fr', md: `repeat(${columns.length}, minmax(0, 1fr))` },
-              }}
-            >
-              {row.map((cell, index) => (
-                <Typography
-                  key={`${cell}-${index}`}
-                  variant="body2"
-                  sx={{ color: index === 0 ? 'text.primary' : 'text.secondary' }}
-                >
-                  {cell}
-                </Typography>
-              ))}
-            </Box>
-          ))}
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function AdminView() {
-  const [registrationRequests, setRegistrationRequests] = useState<RegistrationRequest[]>([]);
-  const [requestsError, setRequestsError] = useState<string | null>(null);
-  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
-
-  const getAccessToken = useCallback(async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    return session?.access_token;
-  }, []);
-
-  const fetchRegistrationRequests = useCallback(async () => {
-    try {
-      setRequestsError(null);
-
-      const accessToken = await getAccessToken();
-
-      if (!accessToken) {
-        setRequestsError('ไม่พบ session ของ admin');
-        return;
-      }
-
-      const { data } = await axios.get<{
-        users: {
-          id: string;
-          email?: string;
-          phone?: string;
-          displayName?: string;
-          requestedAt?: string;
-        }[];
-      }>(`${endpoints.admin.users}?role=user&status=pending`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      setRegistrationRequests(
-        data.users.map((user) => ({
-          id: user.id,
-          name: user.displayName || user.email || 'ไม่ระบุชื่อ',
-          email: user.email || '-',
-          phone: user.phone || '-',
-          requestedAt: user.requestedAt || '-',
-        }))
-      );
-    } catch (error) {
-      setRequestsError(error instanceof Error ? error.message : 'โหลดคำขอไม่สำเร็จ');
-    }
-  }, [getAccessToken]);
-
-  const handleUpdateRegistrationRequest = useCallback(
-    async (userId: string, approvalStatus: 'approved' | 'rejected') => {
-      try {
-        setUpdatingUserId(userId);
-        setRequestsError(null);
-
-        const accessToken = await getAccessToken();
-
-        if (!accessToken) {
-          setRequestsError('ไม่พบ session ของ admin');
-          return;
-        }
-
-        await axios.patch(
-          endpoints.admin.users,
-          { userId, approvalStatus },
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-
-        await fetchRegistrationRequests();
-      } catch (error) {
-        setRequestsError(error instanceof Error ? error.message : 'อัปเดตคำขอไม่สำเร็จ');
-      } finally {
-        setUpdatingUserId(null);
-      }
-    },
-    [fetchRegistrationRequests, getAccessToken]
-  );
-
-  useEffect(() => {
-    fetchRegistrationRequests();
-  }, [fetchRegistrationRequests]);
-
   return (
     <DashboardContent maxWidth="xl" sx={{ mt: 10 }}>
-      <Stack
-        direction={{ xs: 'column', md: 'row' }}
-        spacing={2}
-        alignItems={{ md: 'center' }}
-        justifyContent="space-between"
-        sx={{ mb: 3 }}
-      >
-        <Box>
-          <Typography variant="h4">ระบบหลังบ้าน</Typography>
-          <Typography sx={{ mt: 0.75, color: 'text.secondary' }}>
-            จัดการยอดจอง บริการ พนักงาน ลูกค้า โปรโมชั่น และรายงานรายได้
-          </Typography>
-        </Box>
-
-        <Stack direction="row" spacing={1}>
-          <Button variant="outlined" startIcon={<Iconify icon="solar:download-bold" />}>
-            ส่งออกรายงาน
-          </Button>
-          <Button variant="contained" startIcon={<Iconify icon="solar:add-circle-bold" />}>
-            เพิ่มการจอง
-          </Button>
-        </Stack>
-      </Stack>
+      <AdminPageHeading
+        title="ระบบหลังบ้าน"
+        description="ภาพรวมยอดจอง ลูกค้า โปรโมชั่น และทางลัดไปยังหน้าจัดการหลัก"
+        action={
+          <Stack direction="row" spacing={1}>
+            <Button variant="outlined" startIcon={<Iconify icon="solar:download-bold" />}>
+              ส่งออกรายงาน
+            </Button>
+            <Button variant="contained" startIcon={<Iconify icon="solar:add-circle-bold" />}>
+              เพิ่มการจอง
+            </Button>
+          </Stack>
+        }
+      />
 
       <Box
         sx={{
@@ -264,7 +51,7 @@ export function AdminView() {
           gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
         }}
       >
-        {stats.map((stat) => (
+        {adminStats.map((stat) => (
           <Card key={stat.label}>
             <CardContent>
               <Box
@@ -291,97 +78,6 @@ export function AdminView() {
         ))}
       </Box>
 
-      <Card sx={{ mt: 3 }}>
-        <CardHeader
-          title="คำขอลงทะเบียนสมาชิก"
-          subheader="ผู้ใช้ใหม่ต้องได้รับการอนุมัติจาก admin ก่อนจึงจะเข้าสู่ระบบได้"
-          action={<StatusPill>รออนุมัติ {registrationRequests.length}</StatusPill>}
-        />
-        <CardContent>
-          {requestsError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {requestsError}
-            </Alert>
-          )}
-
-          <Stack spacing={1.5}>
-            {registrationRequests.map((request) => (
-              <Box
-                key={request.email}
-                sx={{
-                  p: 2,
-                  display: 'grid',
-                  gap: 2,
-                  borderRadius: 1,
-                  alignItems: 'center',
-                  bgcolor: 'background.neutral',
-                  gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 150px 190px' },
-                }}
-              >
-                <Box>
-                  <Typography sx={{ fontWeight: 800 }}>{request.name}</Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    {request.email}
-                  </Typography>
-                  <StatusPill>role: user</StatusPill>
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    เบอร์โทร
-                  </Typography>
-                  <Typography variant="body2">{request.phone}</Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    ส่งคำขอ
-                  </Typography>
-                  <Typography variant="body2">{request.requestedAt}</Typography>
-                </Box>
-                <Stack direction="row" spacing={1}>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    loading={updatingUserId === request.id}
-                    onClick={() => handleUpdateRegistrationRequest(request.id, 'approved')}
-                    startIcon={<Iconify icon="solar:check-circle-bold" />}
-                  >
-                    อนุมัติ
-                  </Button>
-                  <Button
-                    size="small"
-                    color="error"
-                    variant="outlined"
-                    loading={updatingUserId === request.id}
-                    onClick={() => handleUpdateRegistrationRequest(request.id, 'rejected')}
-                    startIcon={<Iconify icon="solar:close-circle-bold" />}
-                  >
-                    ปฏิเสธ
-                  </Button>
-                </Stack>
-              </Box>
-            ))}
-
-            {!registrationRequests.length && !requestsError && (
-              <Box
-                sx={{
-                  py: 4,
-                  px: 2,
-                  borderRadius: 1,
-                  textAlign: 'center',
-                  bgcolor: 'background.neutral',
-                }}
-              >
-                <Iconify width={40} icon="solar:users-group-rounded-bold-duotone" />
-                <Typography sx={{ mt: 1, fontWeight: 800 }}>ไม่มีคำขอรออนุมัติ</Typography>
-                <Typography variant="body2" sx={{ mt: 0.5, color: 'text.secondary' }}>
-                  เมื่อ user ลงทะเบียนใหม่ รายการจะมาแสดงในส่วนนี้
-                </Typography>
-              </Box>
-            )}
-          </Stack>
-        </CardContent>
-      </Card>
-
       <Box
         sx={{
           mt: 3,
@@ -394,11 +90,11 @@ export function AdminView() {
           <CardHeader
             title="Dashboard สรุปยอดจอง"
             subheader="ตารางวันนี้ พร้อมสถานะและการกันเวลาซ้ำ"
-            action={<StatusPill>ป้องกันจองเวลาซ้ำ</StatusPill>}
+            action={<AdminStatusPill>ป้องกันจองเวลาซ้ำ</AdminStatusPill>}
           />
           <CardContent>
             <Stack divider={<Divider flexItem />}>
-              {bookings.map((row) => (
+              {adminBookings.map((row) => (
                 <Box
                   key={row.join('-')}
                   sx={{
@@ -411,7 +107,7 @@ export function AdminView() {
                 >
                   {row.map((cell, index) =>
                     index === 4 ? (
-                      <StatusPill key={cell}>{cell}</StatusPill>
+                      <AdminStatusPill key={cell}>{cell}</AdminStatusPill>
                     ) : (
                       <Typography key={cell} variant="body2">
                         {cell}
@@ -424,28 +120,39 @@ export function AdminView() {
           </CardContent>
         </Card>
 
-        <Card id="promotions">
-          <CardHeader title="โปรโมชั่น / คูปอง" subheader="แคมเปญที่กำลังใช้งาน" />
+        <Card>
+          <CardHeader
+            title="โปรโมชั่น / คูปอง"
+            subheader="แคมเปญที่กำลังใช้งาน"
+            action={
+              <Button
+                href={paths.admin.promotions}
+                size="small"
+                variant="outlined"
+                endIcon={<Iconify icon="eva:arrow-ios-forward-fill" />}
+              >
+                จัดการ
+              </Button>
+            }
+          />
           <CardContent>
             <Stack spacing={1.5}>
-              {['ลด 20% สำหรับจองออนไลน์', 'คูปองวันเกิดสมาชิก', 'แพ็กเกจคู่รักวันธรรมดา'].map(
-                (promotion) => (
-                  <Box
-                    key={promotion}
-                    sx={{
-                      p: 1.5,
-                      display: 'flex',
-                      borderRadius: 1,
-                      alignItems: 'center',
-                      gap: 1,
-                      bgcolor: 'background.neutral',
-                    }}
-                  >
-                    <Iconify icon="solar:tag-horizontal-bold-duotone" />
-                    <Typography variant="body2">{promotion}</Typography>
-                  </Box>
-                )
-              )}
+              {adminPromotions.map((promotion) => (
+                <Box
+                  key={promotion}
+                  sx={{
+                    p: 1.5,
+                    display: 'flex',
+                    borderRadius: 1,
+                    alignItems: 'center',
+                    gap: 1,
+                    bgcolor: 'background.neutral',
+                  }}
+                >
+                  <Iconify icon="solar:tag-horizontal-bold-duotone" />
+                  <Typography variant="body2">{promotion}</Typography>
+                </Box>
+              ))}
             </Stack>
           </CardContent>
         </Card>
@@ -460,60 +167,34 @@ export function AdminView() {
         }}
       >
         <AdminTable
-          id="services"
-          title="จัดการบริการสปา"
-          columns={['บริการ', 'ระยะเวลา', 'ราคา', 'สถานะ']}
-          rows={services}
-        />
-        <AdminTable
-          id="staff"
-          title="จัดการพนักงาน"
-          columns={['พนักงาน', 'ความเชี่ยวชาญ', 'ภาระงาน']}
-          rows={staff}
-        />
-      </Box>
-
-      <Box
-        sx={{
-          mt: 3,
-          display: 'grid',
-          gap: 3,
-          gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
-        }}
-      >
-        <AdminTable
-          id="customers"
           title="จัดการลูกค้า CRM"
           columns={['ลูกค้า', 'กลุ่ม', 'จำนวนใช้บริการ', 'หมายเหตุ']}
-          rows={customers}
+          rows={adminCustomers}
         />
 
-        <Card id="reports">
-          <CardHeader title="รายงานรายได้" subheader="สรุปช่องทางรายได้ประจำเดือน" />
+        <Card>
+          <CardHeader title="ทางลัดจัดการ" subheader="แยกหน้าหลักของ admin ให้ชัดเจน" />
           <CardContent>
-            {[
-              ['จองออนไลน์', '82,400 บาท', '58%'],
-              ['หน้าร้าน', '45,200 บาท', '32%'],
-              ['คูปอง / แพ็กเกจ', '14,400 บาท', '10%'],
-            ].map((row) => (
-              <Box
-                key={row[0]}
-                sx={{
-                  py: 1.5,
-                  display: 'grid',
-                  gap: 1.5,
-                  borderTop: '1px solid',
-                  borderColor: 'divider',
-                  gridTemplateColumns: '1fr 120px 64px',
-                }}
-              >
-                {row.map((cell) => (
-                  <Typography key={cell} variant="body2">
-                    {cell}
-                  </Typography>
-                ))}
-              </Box>
-            ))}
+            <Stack spacing={1}>
+              {[
+                ['คำขอสมัครสมาชิก', paths.admin.registrationRequests],
+                ['คิวทั้งหมด', paths.admin.servicesQueue],
+                ['หมวดหมู่บริการ', paths.master.category],
+                ['โปรโมชั่น / คูปอง', paths.admin.promotions],
+                ['พนักงาน', paths.admin.staff],
+                ['รายงานรายได้', paths.admin.revenue],
+              ].map(([label, href]) => (
+                <Button
+                  key={label}
+                  href={href}
+                  variant="outlined"
+                  sx={{ justifyContent: 'space-between' }}
+                  endIcon={<Iconify icon="eva:arrow-ios-forward-fill" />}
+                >
+                  {label}
+                </Button>
+              ))}
+            </Stack>
           </CardContent>
         </Card>
       </Box>
